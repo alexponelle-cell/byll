@@ -49,9 +49,13 @@ export async function collectAll(
 }
 
 /** Minuit (heure de Paris) du jour de `now` : les comptes des fans sont relevés une fois par nuit, juste après. */
-export function parisMidnight(now: number): number {
+export const parisMidnight = (now: number) => zoneMidnight(now, 'Europe/Paris');
+/** Minuit heure du Pacifique : remise à zéro du quota de l'API YouTube (9 h à Paris). */
+export const pacificMidnight = (now: number) => zoneMidnight(now, 'America/Los_Angeles');
+
+function zoneMidnight(now: number, timeZone: string): number {
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+    new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
       .formatToParts(now)
       .map((p) => [p.type, Number(p.value)]),
   ) as Record<string, number>;
@@ -69,6 +73,8 @@ const DAY = 86_400_000;
  */
 export function fanAccountDue(account: { platform: string; lastCheckedAt: number | null; lastError?: string | null; createdAt?: number }, lastPublished: number | null | undefined, since: number, now: number, free = false): boolean {
   if (account.lastCheckedAt === null) return true;
+  // Quota YouTube du jour épuisé : il revient à minuit heure du Pacifique (9 h à Paris), on relit dès qu'il est remis à zéro
+  if (account.lastError && /quotaExceeded|exceeded your/i.test(account.lastError)) return account.lastCheckedAt < pacificMidnight(now);
   if (account.lastCheckedAt >= since) return false;
   // Relevé raté à cause du quota Apify : on réessaie dès la nuit suivante (sinon il attendrait 2 nuits de plus)
   if (account.lastError && /hard limit|usage limit|platform-feature-disabled/i.test(account.lastError)) return true;

@@ -51,3 +51,18 @@ describe('relevé de la nuit', () => {
     expect(msg).toContain('@bad (Théo) : compte introuvable');
   });
 });
+
+import { fanAccountDue, pacificMidnight, parisMidnight } from '../src/jobs/collect.js';
+
+describe('quota YouTube épuisé', () => {
+  const night = Date.UTC(2026, 10, 2, 0, 30); // 1 h 30 à Paris
+  const acc = { platform: 'youtube', lastCheckedAt: night, lastError: 'YouTube channels 403: quotaExceeded', createdAt: night - 90 * D };
+  it('remise à zéro à minuit heure du Pacifique = 9 h à Paris', () => {
+    expect(pacificMidnight(Date.UTC(2026, 10, 2, 12))).toBe(Date.UTC(2026, 10, 2, 8));
+    expect(parisMidnight(Date.UTC(2026, 10, 2, 12))).toBe(Date.UTC(2026, 10, 1, 23));
+  });
+  it('relu dès que le quota revient, pas avant', () => {
+    expect(fanAccountDue(acc, null, parisMidnight(night + 4 * H), night + 4 * H)).toBe(false); // 5 h 30 Paris
+    expect(fanAccountDue(acc, null, parisMidnight(night + 8 * H), night + 8 * H)).toBe(true); // 9 h 30 Paris
+  });
+});

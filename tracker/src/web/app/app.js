@@ -1699,23 +1699,33 @@ function bindAccountSearch(tries = 0) {
 }
 
 /** Relevé de la nuit : chaque compte (YouTube, TikTok, Instagram) a-t-il bien été relu ? */
+const TR_NAME = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram' };
+const TR_WHY = { late: 'pas relu à temps', never: 'jamais relu' };
+const trReason = (p) => (p.status === 'error' ? p.error ?? 'erreur' : TR_WHY[p.status]);
+function trackingRows(t, plat) {
+  const list = t.problems.filter((p) => plat === 'all' || p.platform === plat);
+  if (!list.length) return '<div class="empty">Rien à régler ici ✅</div>';
+  // Causes regroupées (ex. 78 × quota Apify), puis le détail compte par compte
+  const by = new Map();
+  for (const p of list) by.set(trReason(p), (by.get(trReason(p)) ?? 0) + 1);
+  const causes = [...by].sort((a, b) => b[1] - a[1]).map(([why, n]) => `<span class="pill ${n && /quota/.test(why) ? 'wait' : 'ko'}" style="margin:0 6px 6px 0">${n} × ${esc(why)}</span>`).join('');
+  return `<div style="padding:0 20px 10px">${causes}</div><div class="table-wrap" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Compte</th><th>Clippeur</th><th>Problème</th><th class="r">Dernier relevé</th></tr></thead><tbody>
+    ${list.map((p) => `<tr><td><a href="${esc(p.url)}" target="_blank" rel="noopener"><span class="plat ${p.platform}">${PLAT_SHORT[p.platform]}</span> @${esc(p.handle)}</a></td><td>${esc(p.username)}</td>
+      <td>${p.status === 'error' ? `<span class="pill ko">${esc(trReason(p))}</span>` : `<span class="pill wait">${trReason(p)}</span>`}</td><td class="r faint">${p.lastCheckedAt ? `relu ${ago(p.lastCheckedAt)}` : 'jamais relu'}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
 function trackingCard(t) {
   if (!t) return '';
-  const NAME = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram' };
   const plats = Object.entries(t.platforms).filter(([, x]) => x.total);
   if (!plats.length) return '';
-  const WHY = { late: 'pas relu à temps', never: 'jamais relu' };
-  const when = (at) => (at ? `relu ${ago(at)}` : 'jamais relu');
-  return `<div class="card"><div class="card-head"><div><h2>Relevé de la nuit ${t.problems.length ? `<span class="tag">${t.problems.length}</span>` : '<span class="pill ok">tout est relu</span>'}</h2>
-      <p>Chaque nuit après minuit. Un compte en erreur est réessayé 45 min plus tard ; le résumé part à 8 h dans le salon log du staff.</p></div></div>
+  return `<div class="card" id="tracking"><div class="card-head"><div><h2>Relevé de la nuit ${t.problems.length ? `<span class="tag">${t.problems.length}</span>` : '<span class="pill ok">tout est relu</span>'}</h2>
+      <p>Chaque nuit après minuit. Un compte en erreur est réessayé 45 min plus tard ; le résumé part à 8 h dans le salon log du staff.</p></div>
+      ${t.problems.length ? segTabs('trplat', [['all', 'Tous'], ...plats.map(([p, x]) => [p, `${TR_NAME[p]} (${x.error + x.late + x.never})`])], 'all') : ''}</div>
     <div class="mini-stats">${plats.map(([p, x]) => {
       const bad = x.error + x.late + x.never;
-      return `<div><b class="num" style="${bad ? 'color:var(--red)' : ''}">${x.ok + x.waiting} / ${x.total}</b><span>${NAME[p]} · ${x.ok} cette nuit${x.waiting ? `, ${x.waiting} plus tard` : ''}${bad ? ` · <b style="color:var(--red)">${bad} à régler</b>` : ''}</span></div>`;
+      return `<div><b class="num" style="${bad ? 'color:var(--red)' : ''}">${x.ok + x.waiting} / ${x.total}</b><span>${TR_NAME[p]} · ${x.ok} cette nuit${x.waiting ? `, ${x.waiting} plus tard` : ''}${bad ? ` · <b style="color:var(--red)">${bad} à régler</b>` : ''}</span></div>`;
     }).join('')}</div>
-    ${t.problems.length ? `<div class="table-wrap"><table><thead><tr><th>Compte</th><th>Clippeur</th><th>Problème</th><th class="r">Dernier relevé</th></tr></thead><tbody>
-      ${t.problems.map((p) => `<tr><td><a href="${esc(p.url)}" target="_blank" rel="noopener"><span class="plat ${p.platform}">${PLAT_SHORT[p.platform]}</span> @${esc(p.handle)}</a></td><td>${esc(p.username)}</td>
-        <td>${p.status === 'error' ? `<span class="pill ko">${esc(p.error ?? 'erreur')}</span>` : `<span class="pill wait">${WHY[p.status]}</span>`}</td><td class="r faint">${when(p.lastCheckedAt)}</td></tr>`).join('')}
-    </tbody></table></div>` : ''}</div>`;
+    ${t.problems.length ? `<div id="tr-rows">${trackingRows(t, 'all')}</div>` : ''}</div>`;
 }
 
 async function pageBoutique() {
@@ -1791,6 +1801,7 @@ async function pageBoutique() {
         </tbody></table></div></div>
     </div>`;
   const root = main();
+  onSeg(root, 'trplat', (v) => ($('#tr-rows', root).innerHTML = trackingRows(d.tracking, v)));
   bindRows(root);
   $('[data-fan-refresh]', root).addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
