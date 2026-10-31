@@ -399,6 +399,31 @@ export async function relanceFans(client: Client<true>, fans: FanService, now = 
   return sent;
 }
 
+/** Compte introuvable (YouTube surtout : pseudo TikTok ou nom de chaîne à la place du @) : le fan est prévenu une fois dans son salon privé. */
+export async function warnBrokenAccounts(client: Client<true>, fans: FanService, now = Date.now()): Promise<number> {
+  const { hour } = parisClock(now);
+  if (hour < 11 || hour >= 21) return 0;
+  const told = new Set(fans.botState<number[]>('broken-warned', []));
+  const fresh = fans.brokenAccounts().filter((b) => !told.has(b.accountId));
+  if (!fresh.length) return 0;
+  const guilds = setupGuilds(client, fans);
+  const NAME = { youtube: 'ta chaîne YouTube', tiktok: 'ton TikTok', instagram: 'ton Instagram' } as const;
+  const HOW = { youtube: 'le lien de ta chaîne (youtube.com/@…, pas le nom affiché)', tiktok: 'ton @ TikTok exact', instagram: 'ton @ Instagram exact' } as const;
+  let sent = 0;
+  for (const b of fresh.slice(0, 20)) {
+    told.add(b.accountId);
+    const priv = privateOf(guilds, b.discordId);
+    if (!priv) continue;
+    await priv
+      .send({ content: `<@${b.discordId}> ⚠️ On ne trouve pas ${NAME[b.platform]} **@${b.handle}** : ses vues ne sont pas comptées.\nRemets ${HOW[b.platform]} ici 👉 ${fans.signupUrl(b.clipperId, now)}`, allowedMentions: { users: [b.discordId] } })
+      .then(() => sent++)
+      .catch((err) => log.warn(`compte introuvable ${b.discordId} : ${String(err)}`));
+    await pause(300);
+  }
+  fans.setBotState('broken-warned', [...told].slice(-3000));
+  return sent;
+}
+
 /** Phrase de motivation du jour dans #général (9 h - midi, Paris), une fois par jour, tirage sans répétition. */
 export async function motivationFans(client: Client<true>, fans: FanService, now = Date.now(), random = Math.random): Promise<boolean> {
   const { hour, day } = parisClock(now);

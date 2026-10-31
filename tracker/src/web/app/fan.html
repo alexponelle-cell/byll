@@ -651,7 +651,7 @@ function route() {
     for (const k of ['tiktok', 'youtube', 'instagram', 'reward']) if (f.get(k)) body[k] = String(f.get(k));
     try {
       const r = await api('/api/fan/register', { method: 'POST', body });
-      const warn = [...r.conflicts.map((a) => `@${a.handle} est déjà relié à quelqu'un d'autre : préviens le staff`), ...r.invalid.map((p) => `${PLATFORM[p]} : mets ton @ ou le lien du profil`), ...(r.rewardError ? [r.rewardError] : [])];
+      const warn = [...r.conflicts.map((a) => `@${a.handle} est déjà relié à quelqu'un d'autre : préviens le staff`), ...r.invalid.map((p) => `${PLATFORM[p]} : mets ton @ ou le lien du profil`), ...(r.notFound ?? []).map((p) => `${PLATFORM[p]} : chaîne introuvable, colle le lien de ta chaîne (youtube.com/@…)`), ...(r.rewardError ? [r.rewardError] : [])];
       if (warn.length) toast(warn.join(' · '), 'err');
       else if (r.missing.length) toast(`Enregistré. Il manque encore : ${r.missing.map((p) => PLATFORM[p]).join(', ')}`);
       else toast(r.registered ? 'Inscription validée ✅ Ton salon privé t’attend sur Discord' : 'Comptes enregistrés ✅', 'ok');

@@ -992,10 +992,42 @@ export class FanService {
    * Inscription depuis le site : comptes tapés (@ ou lien) + compte de livraison. Un champ vide ne retire rien
    * (un compte connecté officiellement n'a pas de champ). Renvoie ce qui a été relié et ce qu'il manque encore.
    */
+  /** La chaîne YouTube existe-t-elle ? En cas de doute (quota, réseau, pas de clé), on laisse passer. */
+  async youtubeExists(value: string): Promise<boolean> {
+    const link = parseAccountInput('youtube', value);
+    const yt = this.fetchers?.youtube;
+    if (!link || !yt?.fetchProfile) return true;
+    try {
+      await yt.fetchProfile({ handle: link.handle, externalId: null });
+      return true;
+    } catch (err) {
+      return !/introuvable|not found/i.test(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /** Comptes introuvables (pseudo faux, nom de chaîne au lieu du @, compte supprimé) : à faire corriger par le fan. */
+  brokenAccounts(): Array<{ accountId: number; clipperId: number; discordId: string; platform: Platform; handle: string }> {
+    const clientId = this.settings().clientId;
+    if (clientId === null) return [];
+    return this.repo
+      .listActiveAccounts()
+      .filter((a) => a.clientId === clientId && a.lastError && /introuvable|not found|404/i.test(a.lastError))
+      .flatMap((a) => {
+        const discordId = this.fans.discordIdOf(a.clipperId);
+        return discordId ? [{ accountId: a.id, clipperId: a.clipperId, discordId, platform: a.platform, handle: a.handle }] : [];
+      });
+  }
+
   async siteRegister(clipper: Clipper, input: Partial<Record<Platform, string>> & { reward?: string }) {
     const before = this.missingPlatforms(clipper.id);
-    const typed = Object.fromEntries((['tiktok', 'youtube', 'instagram'] as const).filter((p) => input[p]?.trim()).map((p) => [p, input[p]!]));
-    const res = this.setAccounts(clipper, typed);
+    const typed: Partial<Record<Platform, string>> = Object.fromEntries((['tiktok', 'youtube', 'instagram'] as const).filter((p) => input[p]?.trim()).map((p) => [p, input[p]!]));
+    // Chaîne YouTube vérifiée tout de suite (gratuit) : un pseudo TikTok ou le nom de la chaîne à la place du @ = jamais relue
+    const notFound: Platform[] = [];
+    if (typed.youtube && !(await this.youtubeExists(typed.youtube))) {
+      delete typed.youtube;
+      notFound.push('youtube');
+    }
+    const res = { ...this.setAccounts(clipper, typed), notFound };
     let rewardError: string | undefined;
     const reward = input.reward?.trim();
     if (reward && reward.toLowerCase() !== (this.rewardAccount(clipper.id).value ?? '').toLowerCase()) {

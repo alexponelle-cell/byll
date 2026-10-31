@@ -141,6 +141,20 @@ describe('programme fans (Neptune)', () => {
     expect(squiduu.signupUrl(fan.id)).toContain('next=inscription');
   });
 
+  it('inscription sur le site : chaîne YouTube introuvable refusée tout de suite, le reste est gardé', async () => {
+    const squiduu = new FanService(repo, new FanRepo(repo.db), agency, 'https://site.test/', async () => null, creatorConfig('squiduu'));
+    squiduu.fetchers = { youtube: { platform: 'youtube', fetchAccount: async () => ({ videos: [] }), fetchProfile: async (a: { handle: string }) => {
+      if (a.handle === 'pseudotiktok') throw new Error('Chaîne YouTube introuvable : pseudotiktok');
+      return { bio: '' };
+    } } } as never;
+    const fan = squiduu.ensureFan('yt1', 'Yan');
+    const r = await squiduu.siteRegister(fan, { tiktok: '@yan.tt', youtube: '@pseudotiktok' });
+    expect(r.notFound).toEqual(['youtube']);
+    expect(r.missing).toContain('youtube');
+    expect(squiduu.accountsOf(fan.id).map((a) => a.platform)).toEqual(['tiktok']);
+    expect((await squiduu.siteRegister(fan, { youtube: '@vraiechaine' })).notFound).toEqual([]);
+  });
+
   it('relances perso des fans : 1 jour sans clip, seulement après un relevé, 1 par jour, 1re / 2e / 3e+, avec leurs chiffres et la citation de leur message', async () => {
     const { RELANCE_1, RELANCE_2, RELANCE_3, personalRelance } = await import('../src/domain/relance.js');
     const fan = fans.ensureFan('r1', 'Rel');

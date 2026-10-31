@@ -1414,7 +1414,7 @@ async function submitSignup(form) {
   const r = await api('/api/fan/register', { method: 'POST', body });
   const warn = [
     ...r.conflicts.map((a) => `@${a.handle} est déjà relié à quelqu'un d'autre : préviens le staff`),
-    ...r.invalid.map((p) => `${PLATFORM[p]} : mets ton @ ou le lien du profil`),
+    ...r.invalid.map((p) => `${PLATFORM[p]} : mets ton @ ou le lien du profil`), ...(r.notFound ?? []).map((p) => `${PLATFORM[p]} : chaîne introuvable, colle le lien de ta chaîne (youtube.com/@…)`),
     ...(r.rewardError ? [r.rewardError] : []),
   ];
   if (warn.length) toast(warn.join(' · '), 'err');
