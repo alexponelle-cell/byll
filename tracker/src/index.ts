@@ -46,14 +46,15 @@ const tiktokCreds = config.TIKTOK_CLIENT_KEY && config.TIKTOK_CLIENT_SECRET ? { 
 const tiktokStore = new TikTokTokenStore(db);
 if (tiktokCreds && config.FETCHER_MODE === 'live') {
   fetchers.tiktok = new TikTokOfficialFetcher(tiktokStore, tiktokCreds, config.VIDEOS_PER_ACCOUNT, fetchers.tiktok);
-  fanFetchers.tiktok = new TikTokOfficialFetcher(tiktokStore, tiktokCreds, 40, config.TIKTOK_APIFY_FALLBACK === '1' ? fanFetchers.tiktok : undefined);
+  // Gratuit : 200 derniers clips par nuit (pages de 20), pour que les vues des vieux clips continuent de compter
+  fanFetchers.tiktok = new TikTokOfficialFetcher(tiktokStore, tiktokCreds, 200, config.TIKTOK_APIFY_FALLBACK === '1' ? fanFetchers.tiktok : undefined);
 }
 // Instagram connecté par le clippeur (API officielle gratuite, compte pro / créateur) ; les autres restent sur Apify
 const instagramCreds = config.INSTAGRAM_APP_ID && config.INSTAGRAM_APP_SECRET ? { appId: config.INSTAGRAM_APP_ID, appSecret: config.INSTAGRAM_APP_SECRET } : undefined;
 const instagramStore = new InstagramTokenStore(db);
 if (instagramCreds && config.FETCHER_MODE === 'live') {
   fetchers.instagram = new InstagramOfficialFetcher(instagramStore, config.VIDEOS_PER_ACCOUNT, fetchers.instagram);
-  fanFetchers.instagram = new InstagramOfficialFetcher(instagramStore, 15, config.INSTAGRAM_APIFY_FALLBACK === '1' ? fanFetchers.instagram : undefined);
+  fanFetchers.instagram = new InstagramOfficialFetcher(instagramStore, 50, config.INSTAGRAM_APIFY_FALLBACK === '1' ? fanFetchers.instagram : undefined);
 }
 // Rattrapage (créateur avec countViewsFrom, ex. Loann) : chaque compte de fan est relu UNE fois avec TOUS ses clips
 // depuis la date de départ (jusqu'à 500) ; ensuite il repasse au rythme normal (5 vidéos)

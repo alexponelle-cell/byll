@@ -451,7 +451,7 @@ Commun aux deux :
 ## 13. À faire (priorités)
 
 1. **Meta** : micro validée le 19 oct ✅ → la mère crée le portefeuille business « System Agency » avec son Facebook → vérification d'entreprise (attestation RNE) → Alex admin → app reliée → App Review Instagram (détail en section 12). Puis facturation / banque / URSSAF.
-2. **TikTok officiel** : validé et branché sur les 6 sites (relais par lune). Faire connecter leur TikTok à tous les clippeurs (annonce « Connecte ton TikTok » : un TikTok non connecté passe par Apify = 5 derniers clips toutes les 2 nuits, les vues des clips plus anciens ne bougent plus ; connecté = 40 clips chaque nuit, gratuit).
+2. **TikTok officiel** : validé et branché sur les 6 sites (relais par lune). Faire connecter leur TikTok à tous les clippeurs (annonce « Connecte ton TikTok » : un TikTok non connecté passe par Apify = 5 derniers clips toutes les 2 nuits, les vues des clips plus anciens ne bougent plus ; connecté = 200 derniers clips chaque nuit, gratuit, depuis le 1er nov ; avant : 40).
 3. **Apify** : sur squiduu (et sûrement loann / Cubi) les relevés TikTok / Insta sont **en erreur** (22 oct, cas d'Antoine sur SQUIDUU) → mettre `APIFY_TOKEN=${{lune.APIFY_TOKEN}}` puis Deploy (Alex). Micka a son propre compte Apify (payé par Micka, token sur le service micka le 18 oct). Antoine : YouTube `@nexusantoinetv` introuvable → corriger dans Mars (✏️ Comptes).
 4. **Loann** : API MS pour livrer les mois automatiquement (attendre le dev de Loann) ; afficher le classement du mois sur le site (`monthLeaderboard`, côté Claude Design).
 5. **Micka** : finir le lancement (/setup, test, Apify de Micka, MARS_SITES, annonce).
