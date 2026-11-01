@@ -66,3 +66,17 @@ describe('quota YouTube épuisé', () => {
     expect(fanAccountDue(acc, null, parisMidnight(night + 8 * H), night + 8 * H)).toBe(true); // 9 h 30 Paris
   });
 });
+
+import { needsCatchUp } from '../src/platforms/apify.js';
+
+describe('gros posteurs (Apify)', () => {
+  const last = Date.UTC(2026, 9, 30);
+  it('relit tout depuis la dernière lecture si les 5 clips lus sont tous nouveaux', () => {
+    expect(needsCatchUp([1, 2, 3, 4, 5].map((h) => last + h * H), 5, last)).toBe(true);
+  });
+  it('pas de 2e lecture sinon (un clip déjà vu, moins de 5 clips, 1re lecture)', () => {
+    expect(needsCatchUp([last + H, last + 2 * H, last + 3 * H, last + 4 * H, last - H], 5, last)).toBe(false);
+    expect(needsCatchUp([last + H, last + 2 * H], 5, last)).toBe(false);
+    expect(needsCatchUp([1, 2, 3, 4, 5].map((h) => last + h * H), 5, null)).toBe(false);
+  });
+});
