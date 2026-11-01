@@ -424,6 +424,40 @@ export async function warnBrokenAccounts(client: Client<true>, fans: FanService,
   return sent;
 }
 
+/**
+ * Rappel perso « connecte ton TikTok » dans le salon privé (11 h - 21 h) : 3 fois max par fan, tous les 3 jours,
+ * ceux dont le relevé est en pause d'abord, 25 par passage. Connecté = relu chaque nuit, gratuit (plus d'Apify).
+ */
+export async function connectReminders(client: Client<true>, fans: FanService, now = Date.now()): Promise<number> {
+  const { hour } = parisClock(now);
+  if (hour < 11 || hour >= 21) return 0;
+  const state = fans.botState<Record<string, { n: number; at: number }>>('connect-reminders', {});
+  const due = fans
+    .fansToConnect()
+    .filter((f) => (state[f.clipperId]?.n ?? 0) < 3 && now - (state[f.clipperId]?.at ?? 0) >= 3 * 86_400_000)
+    .sort((a, b) => Number(b.paused) - Number(a.paused));
+  if (!due.length) return 0;
+  const guilds = setupGuilds(client, fans);
+  const PF = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube' } as const;
+  let sent = 0;
+  for (const f of due.slice(0, 25)) {
+    const priv = privateOf(guilds, f.discordId);
+    if (!priv) continue;
+    const what = f.platforms.map((p) => PF[p]).join(' et ton ');
+    const intro = f.paused ? `⏸️ Ton ${what} n'est **plus relu** en ce moment : tes nouvelles vues ne comptent pas.` : `📱 Ton ${what} n'est relu que toutes les 2 nuits, et seulement tes 5 derniers clips.`;
+    await priv
+      .send({ content: `<@${f.discordId}> ${intro}\n**Connecte-le en 1 clic** (on ne publie rien) et il est relu **chaque nuit**, tous tes clips 👉 ${fans.connectUrl(f.clipperId, now)}`, allowedMentions: { users: [f.discordId] } })
+      .then(() => {
+        sent++;
+        state[f.clipperId] = { n: (state[f.clipperId]?.n ?? 0) + 1, at: now };
+      })
+      .catch((err) => log.warn(`rappel connexion ${f.discordId} : ${String(err)}`));
+    await pause(300);
+  }
+  fans.setBotState('connect-reminders', state);
+  return sent;
+}
+
 /** Phrase de motivation du jour dans #général (9 h - midi, Paris), une fois par jour, tirage sans répétition. */
 export async function motivationFans(client: Client<true>, fans: FanService, now = Date.now(), random = Math.random): Promise<boolean> {
   const { hour, day } = parisClock(now);

@@ -320,6 +320,19 @@ export class FanService {
     return this.officialLogin.platforms.filter((p) => accounts.some((a) => a.platform === p) && !accounts.some((a) => a.platform === p && connected.has(a.id)));
   }
 
+  /** Fans du programme qui n'ont pas encore connecté un compte (TikTok surtout) : relus par Apify (payant) ou en pause. */
+  fansToConnect(): Array<{ clipperId: number; discordId: string; platforms: Platform[]; paused: boolean }> {
+    const clientId = this.settings().clientId;
+    if (clientId === null || !this.officialLogin) return [];
+    return this.repo.listClippers({ clientId }).flatMap((c) => {
+      const platforms = this.toConnect(c.id);
+      const discordId = platforms.length ? this.fans.discordIdOf(c.id) : null;
+      if (!discordId) return [];
+      const paused = this.repo.listAccountsForClipper(c.id).some((a) => platforms.includes(a.platform) && !!a.lastError);
+      return [{ clipperId: c.id, discordId, platforms, paused }];
+    });
+  }
+
   trainingUrl(clipperId: number, now = Date.now()): string {
     return `${this.loginUrl(clipperId, now)}&next=formation`;
   }

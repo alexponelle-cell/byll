@@ -155,6 +155,21 @@ describe('programme fans (Neptune)', () => {
     expect((await squiduu.siteRegister(fan, { youtube: '@vraiechaine' })).notFound).toEqual([]);
   });
 
+  it('rappel « connecte ton TikTok » : fans pas connectés, ceux en pause repérés', async () => {
+    const svc = new FanService(repo, new FanRepo(repo.db), agency, 'https://site.test/', async () => null, creatorConfig('squiduu'));
+    const fan = svc.ensureFan('ct1', 'Cleo');
+    await svc.siteRegister(fan, { tiktok: '@cleo.tt' });
+    const tt = svc.accountsOf(fan.id).find((a) => a.platform === 'tiktok')!;
+    const connected = new Set<number>();
+    svc.officialLogin = { platforms: ['tiktok'], connected: () => connected };
+    const mine = () => svc.fansToConnect().find((f) => f.clipperId === fan.id);
+    expect(mine()).toMatchObject({ platforms: ['tiktok'], paused: false });
+    repo.markAccountChecked(tt.id, Date.now(), { error: 'Apify: Monthly usage hard limit exceeded' });
+    expect(mine()?.paused).toBe(true);
+    connected.add(tt.id);
+    expect(mine()).toBeUndefined();
+  });
+
   it('relances perso des fans : 1 jour sans clip, seulement après un relevé, 1 par jour, 1re / 2e / 3e+, avec leurs chiffres et la citation de leur message', async () => {
     const { RELANCE_1, RELANCE_2, RELANCE_3, personalRelance } = await import('../src/domain/relance.js');
     const fan = fans.ensureFan('r1', 'Rel');
