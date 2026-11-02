@@ -744,7 +744,8 @@ export class FanService {
   me(clipper: Clipper, now = Date.now()) {
     const s = this.settings();
     // Coins affichés seulement sur les clips qui comptent (sinon 0 : vieux clip, compte pas vérifié, légende sans le créateur)
-    const clips = this.fans.clips(clipper.id, 40, this.clipRuleSince(), this.countFrom()).map((c) => ({ ...c, coins: c.counted ? this.points(c.gained) : 0 }));
+    // Tous les clips (gros posteurs : ~10 par jour), le site en affiche 24 puis « Voir plus »
+    const clips = this.fans.clips(clipper.id, 300, this.clipRuleSince(), this.countFrom()).map((c) => ({ ...c, coins: c.counted ? this.points(c.gained) : 0 }));
     return {
       id: clipper.id,
       avatar: this.fans.avatar(clipper.id),
