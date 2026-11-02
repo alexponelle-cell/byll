@@ -965,7 +965,7 @@ export class FanService {
     if (!clientId || since === null) return done;
     const keywords = this.clipKeywords();
     const shown = this.settings().clipKeywords.trim() || keywords.join(', ');
-    for (const clip of this.fans.clipsToCheck(clientId, since)) {
+    for (const clip of this.fans.clipsToCheck(clientId, since, this.countFrom())) {
       const ok = citesCreator(clip.title, keywords);
       if ((clip.check === 'ok') === ok && clip.check !== null) continue;
       this.fans.setClipCheck(clip.id, ok, ok ? 'cite le créateur' : `la légende ne cite pas le créateur (${shown})`);

@@ -327,6 +327,24 @@ describe('programme fans (Neptune)', () => {
     expect(fans.clipKeywords()).toEqual(['squiduu', 'sqd']);
   });
 
+  it('Micka : un clip publié avant l’ajout du compte (mais après le 27 août) est bien contrôlé et compte s’il cite #micka', () => {
+    const micka = new FanService(repo, new FanRepo(repo.db), agency, 'https://site.test/', async () => null, creatorConfig('micka'));
+    micka.saveSettings({ clipRule: true, accountReview: false });
+    repo.setSetting('fans', { ...repo.getSetting('fans', {}), clipRuleSince: Date.parse('2026-08-01T00:00:00Z') });
+    const fan = micka.ensureFan('oc1', 'Océania');
+    micka.addAccounts(fan, 'https://www.instagram.com/micka_quoii_micka_wuu/');
+    const account = repo.listAccountsForClipper(fan.id)[0]!;
+    const before = account.createdAt - 2 * DAY; // posté 2 jours avant de relier son Insta
+    repo.recordCollection(account.id, [
+      { platformVideoId: 'r1', views: 205, publishedAt: before, title: "Tu sais si c'est la bonne ? #micka #relationship" },
+      { platformVideoId: 'r2', views: 100, publishedAt: before, title: 'sans le tag' },
+    ], Date.now());
+    expect(micka.checkClips()).toEqual({ validés: 1, refusés: 1 });
+    const clips = micka.fans.clips(fan.id, 40, Date.parse('2026-08-01T00:00:00Z'), micka.countFrom());
+    expect(clips.find((c) => c.title?.includes('#micka'))).toMatchObject({ counted: true, why: [] });
+    expect(clips.find((c) => c.title === 'sans le tag')?.why).toEqual(['notag']);
+  });
+
   it('nouveaux comptes : file « à vérifier » du staff, vues comptées dès la validation (rétroactif), refus = plus suivi', () => {
     fans.saveSettings({ accountReview: true });
     const fan = fans.ensureFan('d8', 'Nouveau', now - 3 * HOUR);
