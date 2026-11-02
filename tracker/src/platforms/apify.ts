@@ -35,6 +35,20 @@ export function needsCatchUp(publishedAts: Array<number | undefined>, limit: num
 const CATCH_UP = 30;
 const mergeVideos = <T extends { platformVideoId: string }>(a: T[], b: T[]) => [...new Map([...a, ...b].map((v) => [v.platformVideoId, v])).values()];
 
+/**
+ * Légende + hashtags rangés à part par l'actor (certains reels n'ont pas les #tags dans « caption »).
+ * Sans ça, un clip avec #micka bien mis était refusé (« #micka manquant »).
+ */
+export function withHashtags(text: unknown, tags: unknown): string | undefined {
+  const base = typeof text === 'string' ? text : '';
+  const list = (Array.isArray(tags) ? tags : [])
+    .map((t) => (typeof t === 'string' ? t : t && typeof t === 'object' && 'name' in t ? String((t as { name: unknown }).name) : ''))
+    .map((t) => t.replace(/^#/, '').trim())
+    .filter((t) => t && !base.toLowerCase().includes(`#${t.toLowerCase()}`));
+  const out = [base, list.map((t) => `#${t}`).join(' ')].filter(Boolean).join(' ').trim();
+  return out || undefined;
+}
+
 const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
 export class TikTokApifyFetcher implements PlatformFetcher {
@@ -72,7 +86,7 @@ export class TikTokApifyFetcher implements PlatformFetcher {
           platformVideoId: String(i.id),
           url: i.webVideoUrl,
           thumbnailUrl: i.videoMeta?.coverUrl ?? i.covers?.[0],
-          title: i.text,
+          title: withHashtags(i.text, i.hashtags),
           publishedAt: i.createTimeISO ? Date.parse(i.createTimeISO) : undefined,
           views: num(i.playCount) ?? 0,
           likes: num(i.diggCount),
@@ -128,7 +142,7 @@ export class InstagramApifyFetcher implements PlatformFetcher {
           platformVideoId: String(i.shortCode ?? i.id),
           url: i.url,
           thumbnailUrl: i.displayUrl ?? i.thumbnailUrl,
-          title: i.caption,
+          title: withHashtags(i.caption, i.hashtags),
           publishedAt: i.timestamp ? Date.parse(i.timestamp) : undefined,
           views: num(i.videoPlayCount) ?? num(i.videoViewCount) ?? 0,
           likes: num(i.likesCount),

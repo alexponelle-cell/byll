@@ -80,3 +80,14 @@ describe('gros posteurs (Apify)', () => {
     expect(needsCatchUp([1, 2, 3, 4, 5].map((h) => last + h * H), 5, null)).toBe(false);
   });
 });
+
+import { withHashtags } from '../src/platforms/apify.js';
+
+describe('légendes Apify', () => {
+  it('ajoute les hashtags rangés à part, sans doublon', () => {
+    expect(withHashtags('Un hater le traite de fils de riche', ['micka', 'argent'])).toBe('Un hater le traite de fils de riche #micka #argent');
+    expect(withHashtags('Tu sais si c’est la bonne ? #micka', ['micka'])).toBe('Tu sais si c’est la bonne ? #micka');
+    expect(withHashtags('clip', [{ name: 'squiduu' }])).toBe('clip #squiduu');
+    expect(withHashtags(undefined, [])).toBeUndefined();
+  });
+});
