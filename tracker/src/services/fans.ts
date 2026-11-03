@@ -1,7 +1,7 @@
 import type { FanRepo, ItemInput, ShopOrder } from '../db/fans.js';
 import { isVideoFile, parseTrainingLinks, TRAINING_MODULES, youtubeEmbed } from './training.js';
 import type { Account, Clipper, Repo } from '../db/repo.js';
-import type { FetcherRegistry } from '../platforms/types.js';
+import type { FetcherRegistry, PlatformFetcher } from '../platforms/types.js';
 import { citesCreator, clipKeywords } from './clipCheck.js';
 import { parseAccountInput, parseAccountLinks, type AccountLink, type Platform } from '../domain/links.js';
 import { type AgencyService, readableError } from './agency.js';
@@ -813,6 +813,55 @@ export class FanService {
       countFrom: this.countFromLabel(),
       pointsPer1000: this.settings().pointsPer1000,
     };
+  }
+
+  /** Collecteurs qui savent lire UN clip à partir de son lien (Apify / API YouTube), branchés au démarrage. */
+  clipFetchers?: Partial<Record<Platform, { fetchVideo?: PlatformFetcher['fetchVideo'] }>>;
+
+  /**
+   * Clip jamais vu par les relevés (posté entre deux lectures) : on le lit à partir de son lien et on l'ajoute
+   * au compte relié qui l'a posté. `clipperId` = seulement sur les comptes de ce fan (demande du fan, 3 par jour).
+   */
+  async recoverClip(url: string, clipperId?: number, now = Date.now()): Promise<
+    | { status: 'exists' | 'unknown' | 'unavailable' | 'quota' }
+    | { status: 'not-linked'; owner: string | null }
+    | { status: 'added'; clipperId: number; handle: string; views: number }
+  > {
+    const key = videoKey(url);
+    const platform: Platform | null = /tiktok\.com/i.test(url) ? 'tiktok' : /instagram\.com/i.test(url) ? 'instagram' : /youtube\.com|youtu\.be/i.test(url) ? 'youtube' : null;
+    if (!key || !platform) return { status: 'unknown' };
+    if (this.fans.findClip(key)) return { status: 'exists' };
+    const fetcher = this.clipFetchers?.[platform];
+    if (!fetcher?.fetchVideo) return { status: 'unavailable' };
+    const clientId = this.settings().clientId;
+    if (clientId === null) return { status: 'unavailable' };
+    if (clipperId !== undefined) {
+      const day = new Date(now).toISOString().slice(0, 10);
+      const used = this.botState<Record<string, number>>(`clip-recover:${day}`, {});
+      if ((used[clipperId] ?? 0) >= 3) return { status: 'quota' };
+      this.setBotState(`clip-recover:${day}`, { ...used, [clipperId]: (used[clipperId] ?? 0) + 1 });
+    }
+    const found = await fetcher.fetchVideo(url).catch(() => null);
+    if (!found) return { status: 'unknown' };
+    const account = this.repo
+      .listActiveAccounts()
+      .find((a) => a.clientId === clientId && a.platform === platform && (clipperId === undefined || a.clipperId === clipperId) && ((found.owner && a.handle.toLowerCase() === found.owner) || (found.ownerId && a.externalId === found.ownerId)));
+    if (!account) return { status: 'not-linked', owner: found.owner };
+    this.repo.recordCollection(account.id, [found.video], now);
+    this.checkClips();
+    return { status: 'added', clipperId: account.clipperId, handle: account.handle, views: found.video.views };
+  }
+
+  /** FAQ « ce clip ne compte pas » : si on ne l'a jamais vu, on va le chercher avant de répondre. */
+  async faqClip(clipper: Clipper, text: string, now = Date.now()): Promise<string[]> {
+    const key = videoKey(text);
+    if (!key || this.fans.findClip(key)) return this.faqPersonal('clip', clipper, text, now);
+    const url = text.match(/https?:\/\/\S+/)?.[0] ?? '';
+    const r = await this.recoverClip(url, clipper.id, now);
+    if (r.status === 'added') return [`✅ Je l'avais raté, c'est réparé : clip ajouté (**${Math.round(r.views).toLocaleString('fr-FR')} vues**).`, ...this.faqPersonal('clip', clipper, text, now).filter((l) => !l.startsWith('🔎'))];
+    if (r.status === 'not-linked') return [`🔎 Ce clip est posté sur **@${r.owner ?? '?'}**, qui n'est pas relié à ton inscription. Ajoute-le avec **/inscription2** (2e compte) et il sera compté.`];
+    if (r.status === 'quota') return ['⏳ Tu as déjà fait 3 recherches de clips aujourd’hui. Réessaie demain, ou le staff s’en occupe.'];
+    return this.faqPersonal('clip', clipper, text, now);
   }
 
   /** Réponse perso de la FAQ automatique (solde, ce qu'il manque, classement, un clip précis). */

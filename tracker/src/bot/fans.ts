@@ -383,7 +383,8 @@ export function attachHelpChannel(discord: DiscordClient, fans: FanService, site
     try {
       const info = fans.faqInfo(siteUrl);
       const personal = ['coins', 'balance', 'missing', 'rank', 'clip'].includes(intent);
-      const diagnosis = personal ? fans.faqPersonal(intent, fans.ensureFan(message.author.id, message.member?.displayName ?? message.author.username), message.content) : [];
+      const fan = personal ? fans.ensureFan(message.author.id, message.member?.displayName ?? message.author.username) : null;
+      const diagnosis = !fan ? [] : intent === 'clip' ? await fans.faqClip(fan, message.content) : fans.faqPersonal(intent, fan, message.content);
       const content = `${faqAnswer(intent, info, diagnosis)}\n-# 🤖 Réponse automatique. Pas la bonne réponse ? Le staff passe bientôt.`;
       await message
         .reply({ content, allowedMentions: { repliedUser: false } })

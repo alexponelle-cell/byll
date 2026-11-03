@@ -95,6 +95,26 @@ export class TikTokApifyFetcher implements PlatformFetcher {
     };
   }
 
+  async fetchVideo(url: string) {
+    const items = await runActor<Record<string, any>>(this.token, this.actorId, { postURLs: [url], shouldDownloadVideos: false, shouldDownloadCovers: false });
+    const i = items.find((x) => x.id);
+    if (!i) return null;
+    return {
+      owner: i.authorMeta?.name ? String(i.authorMeta.name).toLowerCase() : null,
+      ownerId: i.authorMeta?.id ? String(i.authorMeta.id) : null,
+      video: {
+        platformVideoId: String(i.id),
+        url: i.webVideoUrl ?? url,
+        thumbnailUrl: i.videoMeta?.coverUrl ?? i.covers?.[0],
+        title: withHashtags(i.text, i.hashtags),
+        publishedAt: i.createTimeISO ? Date.parse(i.createTimeISO) : undefined,
+        views: num(i.playCount) ?? 0,
+        likes: num(i.diggCount),
+        comments: num(i.commentCount),
+      },
+    };
+  }
+
   async fetchProfile(account: { handle: string }): Promise<FetchedProfile> {
     const items = await runActor<Record<string, any>>(this.token, this.profileActorId, { profiles: [account.handle], resultsPerPage: 1, shouldDownloadVideos: false, shouldDownloadCovers: false });
     const a = items.find((i) => i.authorMeta)?.authorMeta;
@@ -114,6 +134,10 @@ export class InstagramApifyFetcher implements PlatformFetcher {
     private readonly actorId = 'apify~instagram-reel-scraper',
     private readonly profileActorId = 'apify~instagram-profile-scraper',
   ) {}
+
+  fetchVideo(url: string) {
+    return fetchInstagramPost(this.token, url);
+  }
 
   async fetchProfile(account: { handle: string }): Promise<FetchedProfile> {
     const items = await runActor<Record<string, any>>(this.token, this.profileActorId, { usernames: [account.handle] });
@@ -150,6 +174,27 @@ export class InstagramApifyFetcher implements PlatformFetcher {
         })),
     };
   }
+}
+
+/** Un reel / post Instagram précis à partir de son lien (scraper généraliste, 1 seul résultat). */
+export async function fetchInstagramPost(token: string, url: string) {
+  const items = await runActor<Record<string, any>>(token, 'apify~instagram-scraper', { directUrls: [url], resultsType: 'posts', resultsLimit: 1, addParentData: false });
+  const i = items.find((x) => x.shortCode || x.id);
+  if (!i || i.error) return null;
+  return {
+    owner: i.ownerUsername ? String(i.ownerUsername).toLowerCase() : null,
+    ownerId: i.ownerId ? String(i.ownerId) : null,
+    video: {
+      platformVideoId: String(i.shortCode ?? i.id),
+      url: i.url ?? url,
+      thumbnailUrl: i.displayUrl ?? i.thumbnailUrl,
+      title: withHashtags(i.caption, i.hashtags),
+      publishedAt: i.timestamp ? Date.parse(i.timestamp) : undefined,
+      views: num(i.videoPlayCount) ?? num(i.videoViewCount) ?? 0,
+      likes: num(i.likesCount),
+      comments: num(i.commentsCount),
+    },
+  };
 }
 
 /** Conso Apify du mois (gratuit à lire) : dépensé, plafond et date de remise à zéro. Mise en cache 30 min. */

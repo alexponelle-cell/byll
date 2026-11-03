@@ -47,6 +47,29 @@ export class YouTubeFetcher implements PlatformFetcher {
     return { externalId: c.id, bio: c.snippet.description ?? '', followers: c.statistics?.hiddenSubscriberCount ? undefined : Number(c.statistics?.subscriberCount ?? 0) };
   }
 
+  /** Un Short / une vidéo précise (gratuit : 1 unité de quota) ; ownerId = ID de la chaîne. */
+  async fetchVideo(url: string) {
+    const id = url.match(/(?:shorts\/|[?&]v=|youtu\.be\/|live\/)([\w-]{11})/)?.[1];
+    if (!id) return null;
+    const r = await this.get<{ items?: Array<{ id: string; snippet: { channelId: string; title: string; publishedAt: string; description?: string; tags?: string[] }; statistics: { viewCount?: string; likeCount?: string; commentCount?: string } }> }>('videos', { part: 'snippet,statistics', id });
+    const v = r.items?.[0];
+    if (!v) return null;
+    return {
+      owner: null,
+      ownerId: v.snippet.channelId,
+      video: {
+        platformVideoId: v.id,
+        url: `https://www.youtube.com/shorts/${v.id}`,
+        thumbnailUrl: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+        title: withDescription(v.snippet.title, v.snippet.description, v.snippet.tags),
+        publishedAt: Date.parse(v.snippet.publishedAt),
+        views: Number(v.statistics.viewCount ?? 0),
+        likes: v.statistics.likeCount ? Number(v.statistics.likeCount) : undefined,
+        comments: v.statistics.commentCount ? Number(v.statistics.commentCount) : undefined,
+      },
+    };
+  }
+
   async fetchAccount(account: { handle: string; externalId: string | null }): Promise<FetchedAccount> {
     const channel = await this.channel(account, 'snippet,contentDetails,statistics');
     const profile = { bio: channel.snippet.description ?? '', followers: channel.statistics?.hiddenSubscriberCount ? undefined : Number(channel.statistics?.subscriberCount ?? 0) };
