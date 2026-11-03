@@ -535,7 +535,7 @@ function pCompta() {
 function cResume() {
   const s = stats(month), mg = margins(month).filter((r) => inC(r.c)), tot = mg.reduce((a, r) => ({ fee: a.fee + r.fee, m: a.m + r.marge }), { fee: 0, m: 0 });
   const best = [...mg].sort((a, b) => b.pc - a.pc);
-  return `${s.check ? `<div class="tip2 in" style="margin:0 0 16px">⚠️ <b>${s.check} mouvement à vérifier</b> : libellé pas reconnu. Un clic pour le ranger, et l'outil s'en souvient. <a href="#" data-sub2="moves" style="color:inherit;font-weight:700">Voir</a></div>` : ''}
+  return `${s.check ? `<div class="tip2 in" style="margin:0 0 16px">⚠️ <b>${s.check} mouvement à vérifier</b> : libellé pas reconnu. Un clic pour le ranger, et l'outil s'en souvient. <a href="#" data-sub2="moves" style="color:inherit;font-weight:700">Réserver</a></div>` : ''}
   <div class="bento">
     ${[['Encaissé', s.ca, 'factures payées'], ['Monteurs', s.mont, 'virements'], ['Dépenses', s.other, 'outils, tournages…'], ['URSSAF estimée', s.urssaf, rate ? `${String(rate * 100).replace('.', ',')} % · à mettre de côté` : 'voir comptable']].map(([t, v, d], i) => `<div class="card c3 in" style="--i:${i}"><div class="muted small">${t}</div><div class="mid num" style="margin-top:6px">${count(v)}</div><div class="muted small">${d}</div></div>`).join('')}
     <div class="card dark c4 in" style="--i:4"><div class="muted small">Reste pour toi</div><div class="big" style="margin:8px 0 6px">${count(s.rest)}</div><div class="muted small">${mName(month)}</div>
@@ -594,18 +594,14 @@ let spotImg = null, spotDone = false;
  */
 const STUDIOS = [
   // --- Paris ---
-  { n: 'Studiomatic', q: 'Bastille (11e)', a: 11, p: 25, l: '25-29 €/h audio · 35 €/h vidéo, en autonomie', op: false, auto: true, cams: '3 caméras Mevo, Rodecaster', tags: ['table podcast'], u: 'https://www.studiomatic.co/en/studio-podcast-paris' },
-  { n: 'Studio Module', q: 'Porte d’Asnières (17e) + 19e', a: 17, p: 24, l: 'dès 36 € les 1 h 30, en autonomie', op: false, auto: true, cams: 'plateau équipé, vidéo en option', tags: ['table podcast'], u: 'https://www.studio-module.com/' },
-  { n: 'PodSpace', q: 'Paris 2e', a: 2, p: 35, l: 'dès 35 €/h (≈ 120 €/h avec équipe)', op: false, auto: true, cams: 'vidéo selon formule', tags: ['table podcast'], u: 'https://www.google.com/search?q=PodSpace+studio+podcast+Paris' },
+  { n: 'Studiomatic', q: 'Bastille (11e)', a: 11, p: 25, l: '25 €/h (duo) · 29 €/h (grande salle) · vidéo en option', op: false, auto: true, cams: 'réservation en ligne 24/7, en autonomie', tags: ['table podcast'], u: 'https://www.studiomatic.co/studios/search_results?studios_search_form%5Bcategories%5D%5B%5D=podcast' },
+  { n: 'Studio Module', q: 'Porte d’Asnières (17e) + 19e', a: 17, p: 46, l: '69 € les 1 h 30 · 99 € les 2 h · 184 € les 4 h', op: false, auto: true, cams: 'plateau équipé, réservation en ligne', tags: ['table podcast'], u: 'https://www.studio-module.com/podcast-studio' },
   { n: 'Leizart · salon', q: 'Paris 20e', a: 20, p: 45, l: 'dès 45 € TTC/h (matériel en option)', op: false, auto: true, cams: 'technicien en option', tags: ['salon', 'canapé', 'brique', 'néon'], u: 'https://leizart.com/studio-podcast-tournage-paris' },
   { n: 'Leizart · cyclo', q: 'Paris 20e', a: 20, p: 50, l: 'dès 50 €/h, éclairage inclus', op: false, auto: true, cams: 'technicien en option', tags: ['fond uni', 'fond vert', 'salon'], u: 'https://leizart.com/studio-podcast-tournage-paris' },
   { n: 'Leizart · Cocoon', q: 'Paris 20e', a: 20, p: 0, l: 'prix sur le site', op: false, auto: true, cams: 'interview, podcast, shooting', tags: ['salon'], u: 'https://leizart.com/cocoon-space' },
   { n: 'Studio Video Paris', q: 'Paris', a: 0, p: 50, l: '50 €/h plateau (≈ 45 €/h par 10 h)', op: false, auto: true, cams: 'sans technicien, 2 h min', tags: ['fond uni', 'fond vert'], u: 'https://studio-video.com/' },
   { n: 'ForCast.studio', q: 'Paris 12e', a: 12, p: 60, l: 'dès 60 € TTC/h · 99 € avec 3 caméras + montage', op: true, auto: false, cams: '1 à 3 caméras 4K, montage live', tags: ['table podcast'], u: 'https://www.forcast.studio/' },
-  { n: 'Dreamcast Studio', q: 'République (3e/10e)', a: 3, p: 70, l: 'dès 70 €/h, 1 h min', op: false, auto: true, cams: 'studio 30 m² en sous-sol', tags: ['table podcast'], u: 'https://www.peerspace.com/fr/spaces/fr/paris--%C3%AEle-de-france/podcast-studio' },
   { n: 'Le Labo du Podcast', q: 'République', a: 10, p: 0, l: 'sur devis', op: true, auto: false, cams: 'plateau 30 m² modulable, audio + vidéo', tags: ['table podcast', 'plusieurs décors'], u: 'https://labodupodcast.com/' },
-  { n: 'Studio créatif Paris 18', q: 'Montmartre (18e)', a: 18, p: 75, l: 'dès 75 €/h, 2 h min', op: false, auto: true, cams: 'podcasts filmés, interviews, photo', tags: [], u: 'https://www.peerspace.com/fr/venues/fr/paris--%C3%AEle-de-france/video-studio' },
-  { n: 'Prodster Studio Montmartre', q: 'Montmartre (18e)', a: 18, p: 150, l: 'dès 150 €/h', op: true, auto: false, cams: 'studio audiovisuel 120 m²', tags: ['loft'], u: 'https://www.peerspace.com/fr/venues/fr/paris--%C3%AEle-de-france/video-studio' },
   { n: 'SBM Studios', q: 'Sentier (2e)', a: 2, p: 84, l: '70 € HT/h (fichiers bruts)', op: true, auto: false, cams: 'multi-caméras', tags: ['table podcast', 'plusieurs décors'], u: 'https://studiosbm.fr/' },
   { n: 'Virtual Podcast Studio', q: 'Paris 19e', a: 19, p: 80, l: '80 €/h autonomie · 100 €/h avec technicien (TTC)', op: true, auto: true, cams: '2 ou 3 caméras', tags: ['table podcast'], u: 'https://www.virtualpodcaststudio.fr/' },
   { n: 'Podmax', q: 'Paris 9e', a: 9, p: 99, l: '99 € la 1re heure', op: true, auto: false, cams: '3 caméras Sony 4K', tags: ['table podcast'], u: 'https://www.podmax.fr/' },
@@ -614,29 +610,19 @@ const STUDIOS = [
   { n: 'Georges 15', q: 'Paris 15e', a: 15, p: 120, l: 'dès 100 € HT/h, fichiers sous 72 h', op: true, auto: false, cams: 'multi-caméras', tags: ['table podcast'], u: 'https://georges15.fr/studio-podcast-paris-15' },
   { n: 'Creatory', q: 'Paris 9e', a: 9, p: 120, l: 'dès 120 €', op: true, auto: false, cams: 'podcast + vidéo', tags: ['plusieurs décors'], u: 'https://creatory-studio.com/' },
   { n: "L'Atelier & Beyond", q: 'Paris 12e', a: 12, p: 120, l: 'dès 120 € TTC/h, fonds et son fournis', op: false, auto: true, cams: 'plateau vidéo', tags: ['fond uni'], u: 'https://www.latelierphotostudio.com/post/studio-video-paris' },
-  { n: 'Prception', q: 'Rue Saint-Marc (2e)', a: 2, p: 125, l: '125 €/h · Pro 150 € · Pro Max 290 €', op: true, auto: false, cams: '3 caméras + technicien', tags: ['table podcast'], u: 'https://prception.co/' },
+  { n: 'Prception', q: 'Rue Saint-Marc (2e)', a: 2, p: 125, l: '125 €/h · Pro 150 € · Pro Max 290 €', op: true, auto: false, cams: '3 caméras + technicien', tags: ['table podcast'], u: 'https://prception.co/podcast-video/' },
   { n: 'Underground Podcast', q: 'Marais (4e)', a: 4, p: 125, l: 'dès 125 €/h', op: true, auto: false, cams: '4 décors, 3 Blackmagic + technicien', tags: ['plusieurs décors', 'salon'], u: 'https://undergroundpodcast.fr/studio-podcast-paris/' },
   { n: 'Storiz', q: 'Montparnasse (15e)', a: 15, p: 150, l: '150 € HT/h, régisseur inclus', op: true, auto: false, cams: 'audio + vidéo', tags: ['table podcast'], u: 'https://www.studiostoriz.com/' },
   { n: 'Orso Media', q: 'Paris 17e', a: 17, p: 150, l: 'dès 150 € HT (vidéo en plus)', op: true, auto: false, cams: 'studio + régie', tags: ['table podcast'], u: 'https://orsomedia.io/location-studio-paris' },
   { n: 'Studio Premier', q: 'Paris 2e', a: 2, p: 165, l: '150-180 € TTC/h en vidéo (50 € audio)', op: true, auto: false, cams: 'vidéo multi-caméras', tags: ['fond uni', 'table podcast'], u: 'https://studio-premier.fr/' },
   { n: 'Studio 71', q: 'Paris 17e', a: 17, p: 0, l: 'prix sur la page', op: false, auto: true, cams: 'espace premium réunions + podcasts', tags: ['bureau'], u: 'https://www.wearescene.com/space/studio-71-premium-space-meetings-podcasts-paris-17th' },
   { n: 'Studio vidéo & podcast (OfficeRiders)', q: 'Paris', a: 0, p: 0, l: 'prix sur l’annonce', op: false, auto: true, cams: 'studio intégralement équipé', tags: ['table podcast'], u: 'https://www.officeriders.com/fr/salles/studio-video-podcast-equipe' },
-  { n: 'Penny Lane', q: 'Paris 10e', a: 10, p: 0, l: 'sur devis', op: true, auto: false, cams: 'grands espaces, montage possible', tags: ['loft'], u: 'https://www.google.com/search?q=Penny+Lane+studio+podcast+Paris+10' },
   { n: 'Paris Anim’ Beaujon (Ville de Paris)', q: 'Paris 8e', a: 8, p: 0, l: 'tarif municipal sur demande', op: false, auto: true, cams: 'plusieurs caméras', tags: ['table podcast'], u: 'https://www.paris.fr/activites/studio-podcast-125739' },
   { n: 'Studiopodcast (Sonacom)', q: 'Porte Maillot / Neuilly', a: 17, p: 400, l: '200 € HT/h audio · 400 € HT/h vidéo', op: true, auto: false, cams: 'ingé son inclus, 2 à 8 h', tags: ['table podcast'], u: 'https://studiopodcast.fr/en/' },
-  { n: 'Peerspace (annonces à Paris)', q: 'tout Paris', a: 0, p: 0, l: '≈ 39-95 €/h selon l’annonce', op: false, auto: true, cams: 'salons, lofts, bureaux de particuliers', tags: ['salon', 'bureau', 'loft', 'brique'], u: 'https://www.peerspace.com/fr/venues/fr/paris--%C3%AEle-de-france/interview-filming-location' },
   // --- Île-de-France ---
-  { n: 'Acacia Coworking', q: 'Boulogne-Billancourt (92)', a: 92, p: 20, l: '40 € les 2 h, en autonomie', op: false, auto: true, cams: 'jusqu’à 8 micros', tags: ['table podcast', 'bureau'], u: 'https://www.peerspace.com/fr/venues/fr/boulogne-billancourt--%C3%AEle-de-france/recording-studio' },
   { n: 'Studio vidéo & podcast Prince-Marmottan', q: 'Boulogne-Billancourt (92)', a: 92, p: 80, l: '80 €/h, 4 h min', op: true, auto: false, cams: 'régie + assistance technique', tags: ['table podcast'], u: 'https://www.peerspace.com/pages/listings/67e3e51dba7ef9ef283bf168' },
-  { n: 'PodMax Levallois', q: 'Levallois-Perret (92)', a: 92, p: 145, l: '145 €/h, 1 h min', op: true, auto: false, cams: 'podcast vidéo clé en main', tags: ['table podcast'], u: 'https://www.peerspace.com/fr/spaces/fr/levallois-perret--%C3%AEle-de-france/podcast-studio' },
-  { n: 'Studio d’enregistrement Neuilly', q: 'Neuilly-sur-Seine (92)', a: 92, p: 60, l: '60 €/h, 2 h min', op: false, auto: true, cams: 'studio d’enregistrement', tags: ['table podcast'], u: 'https://www.peerspace.com/fr/venues/fr/neuilly-sur-seine--%C3%AEle-de-france/recording-studio' },
-  { n: 'Studio podcast Nanterre', q: 'Nanterre (92)', a: 92, p: 70, l: 'dès 70 €/h, 2 h min', op: false, auto: true, cams: 'studio podcast', tags: ['table podcast'], u: 'https://www.peerspace.com/fr/spaces/fr/bezons--%C3%AEle-de-france/podcast-studio' },
-  { n: 'Studio Pulp', q: 'Courbevoie (92)', a: 92, p: 140, l: 'dès 140 €/h, 2 h min', op: false, auto: true, cams: 'studio photo / vidéo / podcast', tags: ['fond uni'], u: 'https://www.peerspace.com/fr/venues/fr/courbevoie--%C3%AEle-de-france/video-studio' },
   { n: 'Filme · studio insonorisé', q: 'Montreuil (93)', a: 93, p: 0, l: 'prix sur le site, résa 24/7', op: false, auto: true, cams: 'studio vidéo-podcast 50 m²', tags: ['table podcast'], u: 'https://www.filme.fr/products/location-studio-video-podcast' },
-  { n: 'Studio podcast Pantin', q: 'Pantin (93)', a: 93, p: 60, l: '≈ 60 €/h', op: false, auto: true, cams: 'studio podcast', tags: ['table podcast'], u: 'https://www.peerspace.com/fr/spaces/fr/pantin--%C3%AEle-de-france/podcast-studio' },
   { n: 'M3KAST', q: 'Aulnay-sous-Bois (93)', a: 93, p: 80, l: '80 €/h, multi-caméras', op: true, auto: false, cams: 'studio multi-caméras, déplacement possible', tags: ['table podcast'], u: 'https://m3kast.fr/studio-podcast-93' },
-  { n: 'Studios à Saint-Denis', q: 'Saint-Denis (93)', a: 93, p: 50, l: 'dès ≈ 50 €/h', op: false, auto: true, cams: 'studios d’enregistrement', tags: ['table podcast'], u: 'https://www.peerspace.com/fr/venues/fr/saint-denis--%C3%AEle-de-france/recording-studio' },
-  { n: 'Studios autour de Versailles', q: 'Versailles (78)', a: 78, p: 60, l: 'dès ≈ 60 €/h', op: false, auto: true, cams: 'annonces Peerspace', tags: ['table podcast'], u: 'https://www.peerspace.com/fr/spaces/fr/versailles--%C3%AEle-de-france/podcast-studio' },
 ];
 /** Mots de la recherche → styles de décor (la recherche filtre et classe la liste des studios). */
 const SYN = { salon: ['salon', 'canap', 'fauteuil', 'sofa', 'cosy', 'chaleureu', 'chaud', 'bois', 'étagère', 'etagere', 'biblioth', 'cheminée', 'maison', 'appart'],
@@ -646,6 +632,23 @@ const SYN = { salon: ['salon', 'canap', 'fauteuil', 'sofa', 'cosy', 'chaleureu',
   'table podcast': ['podcast', 'table', 'micro', 'interview', 'face à face', 'face a face', 'discussion'], 'plusieurs décors': ['décors', 'decors', 'plusieurs', 'choix'] };
 const detectStyles = (txt) => { const t = (txt || '').toLowerCase(); return Object.keys(SYN).filter((k) => SYN[k].some((w) => t.includes(w))); };
 let spotQText = '';
+const fold = (t) => (t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const STOP = new Set(['avec', 'pour', 'dans', 'une', 'des', 'les', 'sur', 'pas', 'tres', 'plus', 'veux', 'cherche', 'studio', 'studios', 'lieu', 'lieux', 'paris', 'genre', 'style', 'comme', 'ambiance', 'et', 'ou', 'un', 'le', 'la', 'de', 'du', 'en', 'au', 'aux', 'qui', 'que', 'mon', 'ma', 'mes']);
+/** Mots utiles de la recherche (sans accents ni mots vides). */
+const words = (q) => fold(q).split(/[^a-z0-9]+/).filter((w) => w.length >= 2 && !STOP.has(w));
+/** Un mot colle-t-il à ce lieu ? (nom, quartier, ville, matériel, prix, décor, ou synonyme d'un décor du lieu) */
+const wordHits = (w, st) => {
+  if (['cher', 'econom', 'budget'].some((k) => w.startsWith(k))) return !!st.p && st.p <= 60;
+  if (['operateur', 'technicien', 'equipe', 'regie', 'ingenieur'].some((k) => w.startsWith(k))) return st.op;
+  if (['autonom', 'seul', 'libre'].some((k) => w.startsWith(k))) return st.auto;
+  if (['banlieue', 'idf'].includes(w)) return st.a > 20;
+  const hay = fold([st.n, st.q, st.cams, st.l, ...st.tags].join(' '));
+  if (w.length >= 3 && hay.includes(w)) return true;
+  if (/^\d{1,2}e?$/.test(w)) return st.a === +w.replace('e', '');
+  return st.tags.some((t) => (SYN[t] ?? []).some((k) => { const f = fold(k); return f.startsWith(w) || (w.length >= 4 && w.startsWith(f.slice(0, 4))); }));
+};
+/** % de mots de la recherche que le lieu remplit (null si pas de recherche). */
+const textScore = (st, q) => { const ws = words(q); if (!ws.length) return null; return Math.round((100 * ws.filter((w) => wordHits(w, st)).length) / ws.length); };
 const STYLES = ['salon', 'canapé', 'brique', 'néon', 'fond uni', 'fond vert', 'bureau', 'loft', 'table podcast', 'plusieurs décors'];
 let spotZone = 'all', spotMax = 0, spotOp = 'all', spotHours = 2, spotPeople = 2;
 const spotTags = new Set();
@@ -660,13 +663,17 @@ function studiosCard() {
   const inParis = (s) => s.a < 21;
   const ok = (s) => (!spotMax || (s.p && s.p <= spotMax)) && (spotOp === 'all' || (spotOp === 'op' ? s.op : s.auto)) && (spotZone === 'all' || (spotZone === 'paris' ? inParis(s) : !inParis(s)));
   // Ressemblance = part des styles demandés que le lieu a (0 à 100 %), puis le moins cher d'abord
-  const score = (s) => (spotTags.size ? Math.round((100 * [...spotTags].filter((t) => s.tags.includes(t)).length) / spotTags.size) : null);
+  // Ressemblance : mots de la recherche et décors cochés (moyenne des deux s'il y a les deux)
+  const score = (s) => {
+    const parts = [textScore(s, spotQText), spotTags.size ? Math.round((100 * [...spotTags].filter((t) => s.tags.includes(t)).length) / spotTags.size) : null].filter((x) => x !== null);
+    return parts.length ? Math.round(parts.reduce((a, b) => a + b, 0) / parts.length) : null;
+  };
   const ranked = STUDIOS.filter(ok).map((s) => ({ ...s, match: score(s) })).filter((s) => s.match === null || s.match > 0)
     .sort((a, b) => (b.match ?? 0) - (a.match ?? 0) || (a.p || 999) - (b.p || 999));
   const list = [...mine, ...ranked];
   const chip = (t) => `<button class="pill ${spotTags.has(t) ? 'y' : 'g'}" data-stag="${esc(t)}" style="border:0;cursor:pointer">${esc(t)}</button>`;
   const sel = (id, cur, opts) => `<select id="${id}" class="sel">${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
-  return `<div class="card c12 in" style="grid-column:span 12;--i:2"><div class="ch"><h3><span class="ic">${ic('mic', 16)}</span>${spotTags.size ? 'Lieux qui collent à ta recherche' : 'Studios et lieux à Paris'}</h3><span class="pill g">${list.length} résultat${list.length > 1 ? 's' : ''}</span></div>
+  return `<div class="card c12 in" style="grid-column:span 12;--i:2"><div class="ch"><h3><span class="ic">${ic('mic', 16)}</span>${spotTags.size || spotQText ? 'Lieux qui collent à ta recherche' : 'Studios et lieux · Paris et Île-de-France'}</h3><span class="pill g">${list.length} résultat${list.length > 1 ? 's' : ''}</span></div>
     <div class="row" style="justify-content:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:10px"><span class="small muted">Décor :</span>${STYLES.map(chip).join('')}</div>
     <div class="row small" style="justify-content:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:6px">
       ${sel('spmax', spotMax, [[0, 'Tous les prix'], [40, '≤ 40 €/h'], [50, '≤ 50 €/h'], [60, '≤ 60 €/h'], [100, '≤ 100 €/h']])}
@@ -674,14 +681,14 @@ function studiosCard() {
       ${sel('spop', spotOp, [['all', 'Avec ou sans opérateur'], ['op', 'Opérateur inclus'], ['auto', 'En autonomie']])}
       <span>Durée</span><input id="sph" type="number" min="1" max="12" value="${spotHours}" style="width:56px;border:1px solid var(--line);border-radius:10px;padding:6px;font:inherit"><span>h</span>
       <span>Personnes</span><input id="spppl" type="number" min="1" max="10" value="${spotPeople}" style="width:56px;border:1px solid var(--line);border-radius:10px;padding:6px;font:inherit">
-      ${spotTags.size || spotMax || spotOp !== 'all' || spotZone !== 'all' ? '<button class="btn sm ghost" id="spreset">Tout effacer</button>' : ''}</div>
-    ${spotQText ? `<p class="small" style="margin:4px 0 8px">Recherche : <b>« ${esc(spotQText)} »</b>${spotTags.size ? ` → ${[...spotTags].map(esc).join(', ')}` : ' (aucun style reconnu : choisis-en un ci-dessus)'}${spotMax ? ` · ≤ ${spotMax} €/h` : ''} · ${spotPeople} pers.</p>` : ''}
+      ${spotTags.size || spotMax || spotOp !== 'all' || spotZone !== 'all' || spotQText ? '<button class="btn sm ghost" id="spreset">Tout effacer</button>' : ''}</div>
+    ${spotQText ? `<p class="small" style="margin:4px 0 8px">Recherche : <b>« ${esc(spotQText)} »</b>${spotMax ? ` · ≤ ${spotMax} €/h` : ''} · ${spotPeople} pers.</p>` : ''}
     ${list.map((s, i) => `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div class="grow" style="min-width:240px">${s.match != null ? `<span class="pill ${s.match >= 75 ? 'up' : 'g'}" style="margin-right:6px">${s.match} %</span>` : ''}<b>${s.mine !== undefined ? '⭐ ' : ''}${esc(s.n)}</b> <span class="muted small">· ${esc(s.q)}</span>
         <small>${esc(s.cams)}${s.op ? ' · <b>opérateur inclus</b>' : s.mine === undefined ? ' · en autonomie' : ''}</small>
         ${s.tags.length ? `<div class="row" style="justify-content:flex-start;gap:4px;flex-wrap:wrap;margin-top:4px">${s.tags.map((t) => `<span class="pill ${spotTags.has(t) ? 'y' : 'g'}" style="font-size:11px">${esc(t)}</span>`).join('')}</div>` : ''}</div>
       <div style="text-align:right;max-width:240px"><b class="small">${esc(s.l)}</b>${s.p ? `<div class="muted small">≈ ${fmt(s.p * spotHours)} pour ${spotHours} h</div>` : ''}</div>
-      <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">${s.u ? `<a class="btn sm" href="${esc(s.u)}" target="_blank" rel="noopener">Voir</a>` : ''}<button class="btn sm" data-ask="${i}">Demander une dispo</button><button class="btn sm y" data-note="${esc(JSON.stringify({ n: s.n, q: s.q, p: s.p }))}">J'ai réservé</button>${s.mine !== undefined ? `<button class="btn sm ghost" data-unfav="${s.mine}">✕</button>` : `<button class="btn sm ghost" title="Garder en favori" data-fav="${esc(JSON.stringify({ name: s.n, place: s.q, price: s.p, url: s.u, note: s.l.slice(0, 190) }))}">⭐</button>`}</div>
-      <div class="hidden" id="ask-${i}" style="width:100%"><textarea style="width:100%;min-height:110px;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:10px;font:inherit;font-size:13px">${esc(bookingMsg(s))}</textarea><button class="btn sm y" data-copyask="${i}">Copier le message</button></div></div>`).join('') || '<p class="muted small">Aucun lieu avec ces filtres : enlève un style ou monte le budget.</p>'}
+      <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">${s.u ? `<a class="btn sm" href="${esc(s.u)}" target="_blank" rel="noopener">Réserver</a>` : ''}<button class="btn sm" data-ask="${i}">Demander une dispo</button><button class="btn sm y" data-note="${esc(JSON.stringify({ n: s.n, q: s.q, p: s.p }))}">J'ai réservé</button>${s.mine !== undefined ? `<button class="btn sm ghost" data-unfav="${s.mine}">✕</button>` : `<button class="btn sm ghost" title="Garder en favori" data-fav="${esc(JSON.stringify({ name: s.n, place: s.q, price: s.p, url: s.u, note: s.l.slice(0, 190) }))}">⭐</button>`}</div>
+      <div class="hidden" id="ask-${i}" style="width:100%"><textarea style="width:100%;min-height:110px;margin-top:8px;border:1px solid var(--line);border-radius:12px;padding:10px;font:inherit;font-size:13px">${esc(bookingMsg(s))}</textarea><button class="btn sm y" data-copyask="${i}">Copier le message</button></div></div>`).join('') || `<p class="muted small">Aucun lieu ne correspond${spotQText ? ` à « ${esc(spotQText)} »` : ''}. Essaie d'autres mots (salon, brique, fond blanc, Boulogne, opérateur…) ou cherche sur <a href="https://www.google.com/search?q=${encodeURIComponent('location studio tournage ' + spotQText + ' Paris')}" target="_blank" rel="noopener">Google</a>.</p>`}
     <p class="muted small" style="margin-top:8px">Prix d'appel relevés sur les sites des studios, Peerspace et des comparatifs (26 oct 2026) : HT / TTC, opérateur et minimum d'heures varient, vérifie avant de réserver.</p>
     <details style="margin-top:6px"><summary class="small" style="cursor:pointer"><b>+ Ajouter un favori</b> (ex. le studio de Bobby)</summary>
       <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${['fvn|Nom', 'fvq|Quartier', 'fvp|€/h', 'fvu|Lien (facultatif)', 'fvo|Note'].map((x) => { const [id, ph] = x.split('|'); return `<input id="${id}" placeholder="${ph}" ${id === 'fvp' ? 'type="number" style="width:80px' : 'style="flex:1;min-width:120px'};border:1px solid var(--line);border-radius:10px;padding:7px 9px;font:inherit;font-size:13px">`; }).join('')}<button class="btn sm y" id="fvgo">Ajouter</button></div></details></div>`;
@@ -692,7 +699,7 @@ function spotResults() {
   return `<div class="card c12 in" style="grid-column:span 12;--i:2" id="spres"><div class="ch"><h3><span class="ic">${ic('spark', 16)}</span>Lieux qui ressemblent à ta référence</h3><span class="muted small">${new Date(L.at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${esc(L.query.city)} · ${esc(L.query.budget)}</span></div>
     <p style="margin:0 0 8px"><b>Style reconnu :</b> ${esc(r.style)}</p><div class="row" style="justify-content:flex-start;gap:6px;flex-wrap:wrap;margin-bottom:10px">${r.tags.map((t) => `<span class="pill y">${esc(t)}</span>`).join('')}</div>
     ${list.map((x) => `<div class="li" style="flex-wrap:wrap"><span class="pill ${x.match >= 75 ? 'up' : 'g'}" style="min-width:52px;text-align:center">${Math.round(x.match)} %</span><div class="grow" style="min-width:220px"><b>${esc(x.name)}</b> <span class="muted small">· ${esc(x.place)}</span><small>${esc(x.why)}</small></div>
-      <b class="small" style="max-width:220px;text-align:right">${esc(x.priceText)}</b><div class="row" style="gap:6px;flex-wrap:nowrap">${/^https?:/.test(x.url) ? `<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">Voir</a>` : ''}<button class="btn sm y" data-note="${esc(JSON.stringify({ n: x.name, q: x.place, p: x.pricePerHour ?? 0 }))}">J'ai réservé</button><button class="btn sm ghost" data-fav="${esc(JSON.stringify({ name: x.name, place: x.place, price: x.pricePerHour ?? 0, url: /^https?:/.test(x.url) ? x.url : '', note: x.why.slice(0, 190) }))}" title="Garder en favori">⭐</button></div></div>`).join('') || '<p class="muted small">Aucun lieu trouvé : élargis le budget ou la description.</p>'}
+      <b class="small" style="max-width:220px;text-align:right">${esc(x.priceText)}</b><div class="row" style="gap:6px;flex-wrap:nowrap">${/^https?:/.test(x.url) ? `<a class="btn sm" href="${esc(x.url)}" target="_blank" rel="noopener">Réserver</a>` : ''}<button class="btn sm y" data-note="${esc(JSON.stringify({ n: x.name, q: x.place, p: x.pricePerHour ?? 0 }))}">J'ai réservé</button><button class="btn sm ghost" data-fav="${esc(JSON.stringify({ name: x.name, place: x.place, price: x.pricePerHour ?? 0, url: /^https?:/.test(x.url) ? x.url : '', note: x.why.slice(0, 190) }))}" title="Garder en favori">⭐</button></div></div>`).join('') || '<p class="muted small">Aucun lieu trouvé : élargis le budget ou la description.</p>'}
     <div style="margin-top:12px"><b class="small">Message à envoyer au studio</b><textarea id="spbrief" style="width:100%;min-height:90px;margin-top:6px;border:1px solid var(--line);border-radius:12px;padding:10px;font:inherit;font-size:13px">${esc(r.brief)}</textarea><button class="btn sm" id="spcopy">Copier le message</button></div>
     <p class="muted small" style="margin-top:8px">Recherche : ${r.keywords.map((k) => `<a href="https://www.google.com/search?q=${encodeURIComponent(k)}" target="_blank" rel="noopener">${esc(k)}</a>`).join(' · ')}. Vérifie dispo et prix sur la page du lieu.</p></div>`;
 }
@@ -704,7 +711,7 @@ function pSpots() {
   <div class="bento"><div class="card c6 in"><div class="ch"><h3><span class="ic">${ic('spark', 16)}</span>Chercher un lieu</h3>${RAW.spotAI ? '<span class="pill y">IA</span>' : ''}</div>
       ${RAW.spotAI ? `<label class="drop" id="spdrop" style="min-height:${spotImg ? 0 : 120}px">${spotImg ? `<img src="${spotImg}" style="max-width:100%;max-height:200px;border-radius:14px">` : '📷 <b>Dépose ta référence</b><br><span class="small">capture d’un podcast, photo d’un décor…</span>'}<input type="file" accept="image/*" id="spfile" hidden></label>` : '<p class="muted small" style="margin:0 0 8px">Décris le lieu (salon, briques, fond blanc…), la liste en dessous se filtre.</p>'}
       <div class="field"><span class="muted small">Et/ou décris ce que tu veux</span><input id="spq" value="${esc(spotQText)}" placeholder="Bureau, étagères en bois, lumière chaude, 2 fauteuils"></div>
-      <div class="row small" style="gap:8px;flex-wrap:wrap"><input id="spv" value="Paris" style="width:90px;border:1px solid var(--line);border-radius:10px;padding:6px 8px;font:inherit"><select id="spb" class="sel">${['30-50 €/h', '50-100 €/h', '100 €/h et plus'].map((x) => `<option ${(spotMax === 50 && x.startsWith('30')) || (spotMax === 100 && x.startsWith('50')) ? 'selected' : ''}>${x}</option>`).join('')}</select><select id="spn2" class="sel">${[1, 2, 3, 4].map((n) => `<option value="${n}" ${n === spotPeople ? 'selected' : ''}>${n} pers.</option>`).join('')}</select></div>
+      <div class="row small" style="gap:8px;flex-wrap:wrap"><input id="spv" value="Paris" style="width:90px;border:1px solid var(--line);border-radius:10px;padding:6px 8px;font:inherit"><select id="spb" class="sel">${['Tout budget', '30-50 €/h', '50-100 €/h'].map((x) => `<option ${(spotMax === 50 && x.startsWith('30')) || (spotMax === 100 && x.startsWith('50')) ? 'selected' : ''}>${x}</option>`).join('')}</select><select id="spn2" class="sel">${[1, 2, 3, 4].map((n) => `<option value="${n}" ${n === spotPeople ? 'selected' : ''}>${n} pers.</option>`).join('')}</select></div>
       ${RAW.spotAI ? `<button class="btn y w" id="spai" style="margin-top:14px">Chercher avec l'IA</button><p class="muted small" style="margin-top:8px">L'IA analyse la photo, cherche des lieux à louer sur le web et rédige le message pour le studio (30 s à 1 min).</p>` : ''}
       <button class="btn ${RAW.spotAI ? '' : 'y'} w" id="spfind" style="margin-top:12px">Rechercher</button>
       <div class="row small" style="gap:8px;margin-top:10px"><span class="muted">Chercher aussi sur :</span><button class="btn sm" data-sp="peerspace">Peerspace</button><button class="btn sm" data-sp="google">Google</button></div></div>
@@ -941,7 +948,7 @@ app.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => { const q = 
   const spp = document.getElementById('spppl'); if (spp) spp.onchange = () => { spotPeople = Math.max(1, +spp.value || 2); render(); };
   const srs = document.getElementById('spreset'); if (srs) srs.onclick = () => { spotTags.clear(); spotMax = 0; spotOp = 'all'; spotZone = 'all'; spotQText = ''; render(); };
   const sfd = document.getElementById('spfind'); if (sfd) sfd.onclick = () => {
-    spotQText = document.getElementById('spq').value.trim(); spotTags.clear(); detectStyles(spotQText).forEach((t) => spotTags.add(t));
+    spotQText = document.getElementById('spq').value.trim();
     const b = document.getElementById('spb').value; spotMax = b.startsWith('30') ? 50 : b.startsWith('50') ? 100 : 0; spotPeople = +document.getElementById('spn2').value || 2;
     render(); setTimeout(() => document.getElementById('spmax')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
   };

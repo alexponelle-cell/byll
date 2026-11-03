@@ -157,16 +157,21 @@ export class FanRepo {
   }
 
   /** Clips de fans publiés depuis `since` (après l'ajout du compte) avec leur état de vérification actuel. */
-  clipsToCheck(clientId: number, since: number): Array<{ id: number; title: string | null; check: 'ok' | 'no' | null }> {
+  /**
+   * Clips à contrôler (#tag dans la légende) : tous ceux qui peuvent rapporter, donc publiés après l'ajout du compte
+   * OU après la date de départ du créateur (`countFrom`, ex. Micka : depuis le 27 août, même avant l'inscription).
+   */
+  clipsToCheck(clientId: number, since: number, countFrom: number | null = null): Array<{ id: number; title: string | null; check: 'ok' | 'no' | null }> {
     return this.db
       .prepare(
         `SELECT v.id, v.title, v.clip_check AS "check" FROM videos v
            JOIN accounts a ON a.id = v.account_id AND a.active = 1
            JOIN clippers c ON c.id = a.clipper_id
-          WHERE c.client_id = ? AND v.published_at >= ? AND v.published_at >= a.created_at
+          WHERE c.client_id = @clientId AND v.published_at >= @since
+            AND (v.published_at >= a.created_at OR (@countFrom IS NOT NULL AND v.published_at >= @countFrom))
             AND COALESCE(v.clip_reason, '') <> 'validé par le staff'`,
       )
-      .all(clientId, since) as Array<{ id: number; title: string | null; check: 'ok' | 'no' | null }>;
+      .all({ clientId, since, countFrom }) as Array<{ id: number; title: string | null; check: 'ok' | 'no' | null }>;
   }
 
   setClipCheck(videoId: number, ok: boolean, reason: string): void {

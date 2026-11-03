@@ -22,7 +22,7 @@ import {
 import { log } from '../log.js';
 import { FAQ_MENU, faqAnswer, type FaqIntent, looksLikeQuestion, matchFaq, PERSONAL_INTENTS } from '../domain/faq.js';
 import { PRIVATE_CATEGORY, VIDEOS_CHANNEL, bare, onFanRegistered, setupCommand, handleSetup, handleAlertsButton, handleStepButtons, handleTraining, onTrainingCompleted, VERIFY_BUTTON, verifyRow } from './fanServer.js';
-import { announceNewVideos, reportAccountsToReview, reportOrdersToApprove, reportSuspicious, snapshotOnboarding, syncGradeRoles, syncTierRoles, unlockFirstClips, weeklyRanking, monthlyPodium, relanceFans, motivationFans, cleanupQuests, weeklyRecap, overtakeAlerts, clipOfWeek, dailyBestClips, weekendChallenge, clipFeedbackMessages } from './fanAutomation.js';
+import { announceNewVideos, reportAccountsToReview, reportOrdersToApprove, reportSuspicious, snapshotOnboarding, syncGradeRoles, syncTierRoles, unlockFirstClips, weeklyRanking, monthlyPodium, relanceFans, motivationFans, cleanupQuests, weeklyRecap, overtakeAlerts, clipOfWeek, dailyBestClips, weekendChallenge, clipFeedbackMessages, trackingDigest, warnBrokenAccounts, connectReminders } from './fanAutomation.js';
 import type { FanService } from '../services/fans.js';
 import { status } from '../status.js';
 
@@ -471,6 +471,9 @@ export async function startFansBot(opts: { token: string; clientId?: string; gui
       await weekendChallenge(c, opts.fans).catch((err) => log.error('défi du week-end', err));
       await clipFeedbackMessages(c, opts.fans).catch((err) => log.error('feedback des clips', err));
       await motivationFans(c, opts.fans).catch((err) => log.error('motivation', err));
+      await trackingDigest(c, opts.fans).catch((err) => log.error('relevé de la nuit', err));
+      await warnBrokenAccounts(c, opts.fans).catch((err) => log.error('comptes introuvables', err));
+      await connectReminders(c, opts.fans).catch((err) => log.error('rappels connexion', err));
       if (opts.youtubeApiKey) await announceNewVideos(c, opts.fans, opts.youtubeApiKey).catch((err) => log.error('nouvelles vidéos', err));
     };
     autoTimer = setInterval(() => void automations(), 15 * 60_000);

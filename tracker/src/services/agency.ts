@@ -437,7 +437,9 @@ export class AgencyService {
 
 /** Erreur de relevé lisible par le staff (au lieu du message brut d'Apify / de l'API). */
 export function readableError(err: string): string {
-  if (/usage hard limit|platform-feature-disabled|402|403/i.test(err) && /apify/i.test(err)) return 'relevé en pause (quota Apify atteint), reprend tout seul au prochain relevé';
+  if (/usage hard limit|platform-feature-disabled|402|403/i.test(err) && /apify/i.test(err)) return 'quota Apify atteint : en pause jusqu’à la remise à zéro du compte Apify (ou monter le plafond)';
+  if (/quotaExceeded|exceeded your\s*(<[^>]*>)?\s*quota/i.test(err)) return 'quota YouTube du jour atteint (clé partagée par les sites) : relu après 9 h, à la remise à zéro';
+  if (/YouTube .*(keyInvalid|API key not valid|accessNotConfigured|has not been used|disabled)/i.test(err)) return 'clé YouTube refusée : vérifier YOUTUBE_API_KEY sur Railway';
   if (/pas connecté/i.test(err)) return 'le clippeur doit connecter ce compte sur le site';
   if (/introuvable|not found|404/i.test(err)) return 'compte introuvable (pseudo faux, privé ou supprimé)';
   if (/expirée/i.test(err)) return 'connexion expirée : le clippeur doit la refaire sur le site';

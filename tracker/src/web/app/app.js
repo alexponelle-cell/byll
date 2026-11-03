@@ -44,6 +44,8 @@ const ICONS = {
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   discord: '<path d="M8 17c-3 0-5-1-5-1 0-5 2-9 2-9s2-1.5 4-1.5l.5 1M16 17c3 0 5-1 5-1 0-5-2-9-2-9s-2-1.5-4-1.5l-.5 1M8 7.5c2.5-.7 5.5-.7 8 0M8 16c2.5 1 5.5 1 8 0"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/>',
   check: '<path d="m5 12 5 5L20 7"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  send: '<path d="M12 19V5M5 12l7-7 7 7"/>',
 };
 const icon = (name) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] ?? ''}</svg>`;
@@ -306,6 +308,30 @@ function openPicker(btn, onApply) {
   }), 0);
 }
 
+/** Courbe lissée sans dépassement (monotone) qui passe par tous les points [[x, y], …]. */
+function smoothPath(pts) {
+  if (pts.length < 3) return `M${pts.map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' L')}`;
+  const n = pts.length;
+  const d = pts.slice(1).map((p, i) => (p[1] - pts[i][1]) / (p[0] - pts[i][0] || 1));
+  const m = pts.map((_, i) => (i === 0 ? d[0] : i === n - 1 ? d[n - 2] : d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2));
+  let out = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[i + 1];
+    const h = (x1 - x0) / 3;
+    out += ` C${(x0 + h).toFixed(1)},${(y0 + m[i] * h).toFixed(1)} ${(x1 - h).toFixed(1)},${(y1 - m[i + 1] * h).toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`;
+  }
+  return out;
+}
+
+/** Petite courbe (sans axes) pour les cartes chiffres. */
+function spark(values, w = 96, h = 40) {
+  if (values.length < 2) return '';
+  const max = Math.max(1, ...values);
+  const pts = values.map((v, i) => [(i * w) / (values.length - 1), h - 3 - (Math.max(0, v) / max) * (h - 6)]);
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><path pathLength="1" d="${smoothPath(pts)}"/></svg>`;
+}
+
 /** Graphique en aire (SVG) avec info-bulle au survol. mode : 'views' | 'posts' | 'both'. */
 function mountChart(el, series, mode = 'views') {
   const W = 700;
@@ -328,20 +354,20 @@ function mountChart(el, series, mode = 'views') {
   const labelEvery = Math.max(1, Math.ceil(series.length / 7));
   const paths = keys
     .map((k) => {
-      const pts = series.map((d, i) => `${x(i).toFixed(1)},${scales[k].y(d[k]).toFixed(1)}`);
+      const line = smoothPath(series.map((d, i) => [x(i), scales[k].y(d[k])]));
       const cls = k === 'posts' ? 'posts' : '';
-      return `<path class="area ${cls}" d="M${pts[0].split(',')[0]},${H - P.b} L${pts.join(' L')} L${x(series.length - 1)},${H - P.b} Z"/>
-        <path class="line ${cls}" d="M${pts.join(' L')}"/>`;
+      return `<path class="area draw ${cls}" d="${line} L${x(series.length - 1).toFixed(1)},${H - P.b} L${x(0).toFixed(1)},${H - P.b} Z"/>
+        <path class="line draw ${cls}" pathLength="1" d="${line}"/>`;
     })
     .join('');
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Évolution par jour">
-    <defs><linearGradient id="areaFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#FF5A36" stop-opacity=".22"/><stop offset="1" stop-color="#FF5A36" stop-opacity="0"/></linearGradient>
-    <linearGradient id="areaFillBlue" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#FFB547" stop-opacity=".18"/><stop offset="1" stop-color="#FFB547" stop-opacity="0"/></linearGradient></defs>
+    <defs><linearGradient id="areaFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--accent)" stop-opacity=".22"/><stop offset="1" style="stop-color:var(--accent)" stop-opacity="0"/></linearGradient>
+    <linearGradient id="areaFillBlue" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--accent-2, #FFB547)" stop-opacity=".18"/><stop offset="1" style="stop-color:var(--accent-2, #FFB547)" stop-opacity="0"/></linearGradient></defs>
     <g class="grid">${ticks.map((t) => `<line x1="${P.l}" x2="${W - P.r}" y1="${t.y}" y2="${t.y}"/>`).join('')}</g>
     <g class="axis">${ticks.map((t) => `<text x="${P.l - 8}" y="${t.y + 3}" text-anchor="end">${fmtK(t.v)}</text>`).join('')}
       ${series.map((d, i) => (i % labelEvery === 0 || i === series.length - 1 ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${d.day.slice(8, 10)}/${d.day.slice(5, 7)}</text>` : '')).join('')}</g>
-    ${paths}<line class="hover-line" y1="${P.t}" y2="${H - P.b}" stroke="#FF5A36" stroke-width="1" opacity="0"/>
-    <circle class="hover-dot" r="4" fill="#FF5A36" stroke="#170B08" stroke-width="2" opacity="0"/></svg><div class="tip"></div>`;
+    ${paths}<line class="hover-line" y1="${P.t}" y2="${H - P.b}" style="stroke:var(--faint)" stroke-dasharray="3 4" stroke-width="1" opacity="0"/>
+    <circle class="hover-dot" r="5" style="fill:var(--accent);stroke:var(--panel)" stroke-width="2.5" opacity="0"/></svg><div class="tip"></div>`;
   const svg = $('svg', el);
   const tip = $('.tip', el);
   svg.addEventListener('mousemove', (e) => {
@@ -510,9 +536,28 @@ function renderSidebar() {
 let SEARCH_CACHE = null;
 function renderTopbar() {
   const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  $('#topbar').innerHTML = `<div class="today"><span class="dot"></span><span style="text-transform:capitalize">${today}</span></div>
-    <div class="search">${icon('search')}<input id="search" placeholder="Rechercher un clipper ou un @compte…" autocomplete="off"><div class="search-results" id="search-results"></div></div>
+  const h = new Date().getHours();
+  $('#topbar').innerHTML = `<div class="today"><span class="dot"></span><span class="hi">${h < 5 || h >= 18 ? 'Bonsoir' : 'Bonjour'} 👋</span><span class="dt">${today}</span></div>
+    <div class="search">${icon('search')}<input id="search" placeholder="Chercher un clippeur ou demander à Lune…" autocomplete="off"><kbd>⌘K</kbd>
+      <button class="ask-go" data-ask title="Demander à Lune">${icon('right')}</button><div class="search-results" id="search-results"></div></div>
+    <button class="icon-btn ink" data-lune title="Demander à Lune">${icon('message')}</button>
     <a class="icon-btn" href="#/agence" title="Alertes">${icon('bell')}<span class="badge-count" id="alert-count" hidden></span></a>`;
+  $('[data-lune]').addEventListener('click', () => Lune.toggle());
+  const askFromSearch = () => {
+    const q = $('#search').value.trim();
+    $('#search').value = '';
+    $('#search-results').classList.remove('open');
+    Lune.open(q || undefined);
+  };
+  $('[data-ask]').addEventListener('click', askFromSearch);
+  $('#search').addEventListener('keydown', (e) => {
+    // Entrée sans clippeur trouvé (ou une vraie question) : on demande à Lune
+    if (e.key !== 'Enter') return;
+    const first = $('#search-results a[href]');
+    const q = $('#search').value.trim();
+    if (first && !/\s/.test(q)) return void first.click();
+    askFromSearch();
+  });
   const input = $('#search');
   const results = $('#search-results');
   input.addEventListener('input', async () => {
@@ -577,63 +622,85 @@ async function pageAgence() {
   const strikes = d.leaderboard.reduce((a, r) => a + r.strikes, 0);
   const agencyLabel = store.client ? agencyName(Number(store.client)) : 'Toutes les agences';
   const cl = currentClient();
+  const series = d.series ?? [];
+  const last = series.at(-1);
+  const prev = series.at(-2);
+  const today = new Date().toISOString().slice(0, 10);
+  const liveDelta = last && prev?.views ? Math.round(((last.views - prev.views) / prev.views) * 100) : null;
+  const best = series.reduce((a, s) => (s.views > (a?.views ?? -1) ? s : a), null);
+  const top = [...d.leaderboard].sort((a, b) => b.views - a.views);
+  const lead = top[0];
+  // Jauge : posts publiés par rapport à l'objectif de la période (sinon part des clippeurs qui ont posté)
+  const target = k.posts.objectivePerDay * (d.range?.days ?? 7);
+  const goal = target ? { pct: Math.min(1, k.posts.value / target), label: `${k.posts.value} posts sur ${target}`, title: 'Objectif de posts' }
+    : { pct: d.leaderboard.length ? actives / d.leaderboard.length : 0, label: `${actives} clippeurs sur ${d.leaderboard.length}`, title: 'Clippeurs qui ont posté' };
+  const bars = series.slice(-14).map((s) => s.posts);
+  const barMax = Math.max(1, ...bars);
+  const angle = (goal.pct - 0.5) * 180;
+  const head = (ic, label, sub) => `<header><span class="ic">${icon(ic)}</span><span>${label}${sub ? `<small>${sub}</small>` : ''}</span></header>`;
   main().innerHTML = `
     <div class="page-head"><div>${cl ? `<h1>${esc(cl.name)}</h1><p>Vue d’ensemble du client${cl.fans ? ' · programme fans actif' : ''}</p>` : `<h1>Vue Agence</h1><p>${esc(agencyLabel)} · ${META.clients.length} au total</p>`}</div>
       <div class="actions">${agencySelect()}${periodPicker()}
         <button class="btn" data-refresh>${icon('refresh')} Actualiser</button>
         <a class="btn dark" href="/api/export.csv?${qs()}">${icon('download')} Exporter CSV</a></div></div>
-    <div class="stack">
-      <div class="kpis">
-        <div class="card kpi"><div class="k-label">Vues totales</div><div class="k-value num">${fmtK(k.views.value)}</div>
-          <div class="k-foot"><span>${k.views.clippers} clippers</span>${deltaPill(k.views.deltaPercent)}</div></div>
-        <div class="card kpi"><div class="k-label">Posts publiés</div><div class="k-value num">${k.posts.value}</div>
-          <div class="k-foot"><span>obj. ${k.posts.objectivePerDay}/j</span>${deltaPill(k.posts.deltaPercent)}</div></div>
-        <div class="card kpi"><div class="k-label">Clippeurs actifs</div><div class="k-value num">${actives}</div>
-          <div class="k-foot"><span>sur ${d.leaderboard.length} · au moins 1 post</span></div></div>
-        <div class="card kpi"><div class="k-label">À verser aux clippers</div><div class="k-value num">${euro(k.payout.value)}</div>
-          <div class="k-foot"><span>${esc(periodLabel())}</span></div></div>
-      </div>
-      <details class="card collapse"><summary>Détails de performance ${icon('chevron')}</summary>
-        <div class="mini-stats">
-          <div><b class="num">${scoreAvg}/100</b><span>Score moyen</span></div>
-          <div><b class="num">${k.posts.value ? fmtK(Math.round(k.views.value / k.posts.value)) : '—'}</b><span>Vues gagnées / post</span></div>
-          <div><b class="num">${actives} / ${d.leaderboard.length}</b><span>Clippers ayant posté</span></div>
-          <div><b class="num">${(k.posts.value / Math.max(1, d.leaderboard.length) / d.range.days).toFixed(1).replace('.', ',')}</b><span>Posts / clipper / jour</span></div>
-          <div><b class="num">${strikes}</b><span>Strikes sur la période</span></div>
-        </div></details>
-      <div class="two-col">
-        <div class="card"><div class="card-head"><div><h2>${cl ? 'Évolution' : "Évolution de l'agence"}</h2><p>${esc(periodLabel())}</p></div>
+    <div class="bento">
+      <div class="card kp b3" data-ai="views">${head('eye', 'Vues gagnées', esc(periodLabel()))}
+        <div class="row"><div class="v num">${fmtK(k.views.value)}</div>${spark(series.map((s) => s.views))}</div>
+        <div class="foot">${deltaPill(k.views.deltaPercent)}<span>vs période d’avant</span></div></div>
+      <div class="card kp b3" data-ai="posts">${head('play', 'Posts publiés', `obj. ${k.posts.objectivePerDay}/jour`)}
+        <div class="row"><div class="v num">${k.posts.value}</div><div class="minibars">${bars.map((v, i) => `<i style="--i:${i};height:${Math.max(8, (v / barMax) * 100)}%" class="${i === bars.length - 1 ? 'hi' : ''}"></i>`).join('')}</div></div>
+        <div class="foot">${deltaPill(k.posts.deltaPercent)}<span>vs période d’avant</span></div></div>
+      <div class="card kp b3" data-ai="actives">${head('users', 'Clippeurs actifs', 'au moins 1 post')}
+        <div class="row"><div class="v num">${actives}<span class="faint" style="font-size:16px;letter-spacing:0"> / ${d.leaderboard.length}</span></div>
+          <div class="avs">${top.slice(0, 5).map((r) => avatar(r.username)).join('')}</div></div>
+        <div class="foot"><span>${d.leaderboard.length - actives} n’ont rien posté</span></div></div>
+      <div class="card kp live b3" data-ai="live">${head('pulse', `Vues ${last?.day === today ? 'aujourd’hui' : 'du dernier jour'}<span class="livetag">Live</span>`, last ? dm(last.day) : '')}
+        <div class="row"><div class="v num">${fmtK(last?.views ?? 0)}</div>${spark(series.slice(-14).map((s) => s.views))}</div>
+        <div class="foot">${liveDelta == null ? 'pas de veille à comparer' : `${liveDelta >= 0 ? '+' : ''}${liveDelta} % vs la veille`}</div></div>
+
+      <div class="card chartcard b8" data-ai="chart"><div class="card-head"><div><h2>${cl ? 'Évolution' : "Évolution de l'agence"}</h2><p>${esc(periodLabel())}</p></div>
           ${segTabs('chart', [['views', 'Vues'], ['posts', 'Posts'], ['both', 'Tout']], 'views')}</div>
-          <div class="chart" id="chart"></div></div>
-        <div class="card"><div class="card-head"><div><h2>Alertes <span class="tag">${d.alerts.length}</span></h2><p>Selon la période et le filtre en cours</p></div></div>
-          <div class="alerts">${
-            d.alerts.length
-              ? d.alerts
-                  .map(
-                    (a) => `<a class="alert" href="#/clipper/${a.clipperId}"><span class="dot"></span><div><b>${esc(a.username)}</b>
-                <small>${[a.inactiveDays !== null ? `inactif · ${a.inactiveDays} j sans post` : null, a.dropPercent !== null ? `vues −${a.dropPercent} %` : null].filter(Boolean).join(' · ')}</small></div></a>`,
-                  )
-                  .join('')
-              : '<div class="empty">Aucune alerte 🎉</div>'
-          }</div></div>
-      </div>
-      ${cards ? `<div class="two-col">
-        <div class="card"><div class="card-head"><div><h2>Recrutement & progression</h2><p>Pipeline complet · toute l'agence · état actuel</p></div><a class="btn sm" href="#/funnel">Funnel</a></div>${pipeline(cards.funnel)}</div>
-        <div class="card"><div class="card-head"><div><h2>${icon('pulse').replace('<svg', '<svg width="16" style="vertical-align:-3px"')} Suivi & réactivité</h2><p>Temps de réponse du staff · salons privés</p></div></div>
-          <div class="card-pad" style="padding-top:0"><div class="k-value num" style="font-size:32px">${fmtDur(cards.response.avgMs)}
+        ${k.posts.value ? `<div class="floaty" style="bottom:64px;left:9%"><small>Vues par post</small><b class="num">${fmtK(Math.round(k.views.value / k.posts.value))}</b></div>` : ''}
+        ${best?.views ? `<div class="floaty" style="bottom:64px;left:34%;animation-delay:-3s"><small>Meilleur jour · ${dm(best.day)}</small><b class="num">${fmtK(best.views)}</b></div>` : ''}
+        <div class="chart" id="chart"></div></div>
+      <div class="card b4" data-ai="goal"><div class="card-head"><div><h2>${goal.title}</h2><p>${esc(periodLabel())}</p></div></div>
+        <div class="gauge"><svg viewBox="0 0 240 132"><path class="gt" pathLength="1" d="M20,120 A100,100 0 0 1 220,120"/>
+          <path class="gv" pathLength="1" stroke-dasharray="${goal.pct.toFixed(3)} 1.2" d="M20,120 A100,100 0 0 1 220,120"/>
+          <line class="needle" x1="120" y1="120" x2="120" y2="44" style="transform:rotate(${angle.toFixed(1)}deg)"/><circle class="hub" cx="120" cy="120" r="7"/></svg>
+          <div class="gc"><b class="num">${Math.round(goal.pct * 100)} %</b><small>${goal.label}</small></div></div>
+        <div class="mini-stats" style="grid-template-columns:1fr 1fr"><div><b class="num">${scoreAvg}/100</b><span>Score moyen</span></div><div><b class="num">${euro(k.payout.value)}</b><span>À verser</span></div></div></div>
+
+      <div class="card b4" data-ai="alerts"><div class="card-head"><div><h2>Alertes <span class="tag">${d.alerts.length}</span></h2><p>Clippeurs à relancer</p></div><a class="btn sm" href="#/clippers">${icon('arrow')}</a></div>
+        <div class="tx">${
+          d.alerts.length
+            ? d.alerts.map((a) => `<a href="#/clipper/${a.clipperId}"><i class="${a.dropPercent !== null && a.inactiveDays === null ? 'warn' : ''}"></i>${avatar(a.username)}<div><b>${esc(a.username)}</b>
+                <small>${[a.inactiveDays !== null ? `${a.inactiveDays} j sans post` : null, a.dropPercent !== null ? `vues −${a.dropPercent} %` : null].filter(Boolean).join(' · ')}</small></div>
+                <span class="delta ${a.inactiveDays !== null ? 'down' : 'flat'}">${a.inactiveDays !== null ? `${a.inactiveDays} j` : `−${a.dropPercent} %`}</span></a>`).join('')
+            : '<div class="empty">Aucune alerte 🎉</div>'
+        }</div></div>
+      <div class="card b4" data-ai="top">${lead ? `<a class="profile" href="#/clipper/${lead.id}">${avatar(lead.username)}<span class="crown">🏆 N°1 · ${esc(periodLabel())}</span>
+          <h3>${esc(lead.username)}</h3>${plats(lead.platforms)}
+          <div class="trio"><div><small>Vues</small><b class="num">${fmtK(lead.views)}</b></div><div><small>Posts</small><b class="num">${lead.posts}</b></div><div><small>Score</small><b class="num">${lead.score.total}</b></div></div></a>`
+        : '<div class="empty">Pas encore de clippeur.</div>'}</div>
+      ${cards ? `<div class="card inkcard b4" data-ai="speed"><div class="card-head"><div><h2>Réactivité du staff</h2><p>Temps de réponse · salons privés</p></div></div>
+          <div class="card-pad" style="padding-top:0"><div class="k-value num" style="font-size:40px;font-weight:800;letter-spacing:-0.04em">${fmtDur(cards.response.avgMs)}
           ${cards.response.avgMs != null && cards.response.prevAvgMs != null ? `<span class="delta ${cards.response.avgMs <= cards.response.prevAvgMs ? 'up' : 'down'}" style="font-size:12px;vertical-align:middle">${cards.response.avgMs <= cards.response.prevAvgMs ? '−' : '+'}${fmtDur(Math.abs(cards.response.avgMs - cards.response.prevAvgMs))}</span>` : ''}</div>
-          <p class="muted" style="margin:4px 0 0">${cards.response.prevAvgMs == null ? 'Pas de comparaison sur la période précédente' : cards.response.avgMs <= cards.response.prevAvgMs ? 'Plus réactif que la période précédente' : 'Moins réactif que la période précédente'}</p>
-          <p class="faint" style="margin:2px 0 0;font-size:12px">${cards.response.answered} sollicitation(s) répondue(s) sur la période</p></div></div>
-      </div>` : ''}
-      <div class="card" id="lb"><div class="card-head"><div><h2>Classement des clippers</h2><p>${d.leaderboard.length} clippers · ${esc(periodLabel())}</p></div>
+          <p class="muted" style="margin:6px 0 0">${cards.response.prevAvgMs == null ? 'Pas de comparaison avec la période d’avant' : cards.response.avgMs <= cards.response.prevAvgMs ? 'Plus rapide que la période d’avant' : 'Plus lent que la période d’avant'}</p>
+          <p class="faint" style="margin:2px 0 0;font-size:12px">${cards.response.answered} message(s) répondu(s)</p></div></div>`
+        : `<div class="card b4" data-ai="details"><div class="card-head"><div><h2>En détail</h2><p>${esc(periodLabel())}</p></div></div>
+          <div class="mini-stats" style="grid-template-columns:1fr 1fr"><div><b class="num">${(k.posts.value / Math.max(1, d.leaderboard.length) / d.range.days).toFixed(1).replace('.', ',')}</b><span>Posts / clippeur / jour</span></div><div><b class="num">${strikes}</b><span>Strikes</span></div></div></div>`}
+      ${cards ? `<div class="card b8" data-ai="pipeline"><div class="card-head"><div><h2>Recrutement & progression</h2><p>Parcours complet · état actuel</p></div><a class="btn sm" href="#/funnel">Funnel</a></div>${pipeline(cards.funnel)}</div>
+        <div class="card b4" data-ai="details"><div class="card-head"><div><h2>En détail</h2><p>${esc(periodLabel())}</p></div></div>
+          <div class="mini-stats" style="grid-template-columns:1fr"><div><b class="num">${(k.posts.value / Math.max(1, d.leaderboard.length) / d.range.days).toFixed(1).replace('.', ',')}</b><span>Posts / clippeur / jour</span></div><div><b class="num">${strikes}</b><span>Strikes sur la période</span></div></div></div>` : ''}
+      <div class="card b12" id="lb" data-ai="lb"><div class="card-head"><div><h2>Classement des clippers</h2><p>${d.leaderboard.length} clippers · ${esc(periodLabel())}</p></div>
         <div class="actions"><span class="faint" style="font-size:12px">Trier par</span>${segTabs('sort', [['views', 'Vues'], ['posts', 'Posts'], ['score', 'Score']], 'views')}</div></div>
         <div id="lb-body">${leaderboardTable(d.leaderboard)}</div></div>
     </div>`;
   const root = main();
   bindFilters(root, pageAgence);
   $('[data-refresh]', root).addEventListener('click', pageAgence);
-  mountChart($('#chart', root), d.series, 'views');
-  onSeg(root, 'chart', (v) => mountChart($('#chart', root), d.series, v));
+  mountChart($('#chart', root), series, 'views');
+  onSeg(root, 'chart', (v) => mountChart($('#chart', root), series, v));
   onSeg(root, 'sort', (v) => ($('#lb-body', root).innerHTML = leaderboardTable(d.leaderboard, v)));
   bindRows($('#lb', root));
 }
@@ -1631,6 +1698,36 @@ function bindAccountSearch(tries = 0) {
   input.oninput = () => { clearTimeout(timer); timer = setTimeout(run, 250); };
 }
 
+/** Relevé de la nuit : chaque compte (YouTube, TikTok, Instagram) a-t-il bien été relu ? */
+const TR_NAME = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram' };
+const TR_WHY = { late: 'pas relu à temps', never: 'jamais relu' };
+const trReason = (p) => (p.status === 'error' ? p.error ?? 'erreur' : TR_WHY[p.status]);
+function trackingRows(t, plat) {
+  const list = t.problems.filter((p) => plat === 'all' || p.platform === plat);
+  if (!list.length) return '<div class="empty">Rien à régler ici ✅</div>';
+  // Causes regroupées (ex. 78 × quota Apify), puis le détail compte par compte
+  const by = new Map();
+  for (const p of list) by.set(trReason(p), (by.get(trReason(p)) ?? 0) + 1);
+  const causes = [...by].sort((a, b) => b[1] - a[1]).map(([why, n]) => `<span class="pill ${n && /quota/.test(why) ? 'wait' : 'ko'}" style="margin:0 6px 6px 0">${n} × ${esc(why)}</span>`).join('');
+  return `<div style="padding:0 20px 10px">${causes}</div><div class="table-wrap" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Compte</th><th>Clippeur</th><th>Problème</th><th class="r">Dernier relevé</th></tr></thead><tbody>
+    ${list.map((p) => `<tr><td><a href="${esc(p.url)}" target="_blank" rel="noopener"><span class="plat ${p.platform}">${PLAT_SHORT[p.platform]}</span> @${esc(p.handle)}</a></td><td>${esc(p.username)}</td>
+      <td>${p.status === 'error' ? `<span class="pill ko">${esc(trReason(p))}</span>` : `<span class="pill wait">${trReason(p)}</span>`}</td><td class="r faint">${p.lastCheckedAt ? `relu ${ago(p.lastCheckedAt)}` : 'jamais relu'}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function trackingCard(t) {
+  if (!t) return '';
+  const plats = Object.entries(t.platforms).filter(([, x]) => x.total);
+  if (!plats.length) return '';
+  return `<div class="card" id="tracking"><div class="card-head"><div><h2>Relevé de la nuit ${t.problems.length ? `<span class="tag">${t.problems.length}</span>` : '<span class="pill ok">tout est relu</span>'}</h2>
+      <p>Chaque nuit après minuit. Un compte en erreur est réessayé 45 min plus tard ; le résumé part à 8 h dans le salon log du staff.</p></div>
+      ${t.problems.length ? segTabs('trplat', [['all', 'Tous'], ...plats.map(([p, x]) => [p, `${TR_NAME[p]} (${x.error + x.late + x.never})`])], 'all') : ''}</div>
+    <div class="mini-stats">${plats.map(([p, x]) => {
+      const bad = x.error + x.late + x.never;
+      return `<div><b class="num" style="${bad ? 'color:var(--red)' : ''}">${x.ok + x.waiting} / ${x.total}</b><span>${TR_NAME[p]} · ${x.ok} cette nuit${x.waiting ? `, ${x.waiting} plus tard` : ''}${bad ? ` · <b style="color:var(--red)">${bad} à régler</b>` : ''}</span></div>`;
+    }).join('')}</div>
+    ${t.problems.length ? `<div id="tr-rows">${trackingRows(t, 'all')}</div>` : ''}</div>`;
+}
+
 async function pageBoutique() {
   setTimeout(() => { loadFaqMisses(); bindAccountSearch(); }, 0);
   loading();
@@ -1641,6 +1738,7 @@ async function pageBoutique() {
   main().innerHTML = `<div class="page-head"><div><h1>Boutique fans</h1><p>Les fans clippent, gagnent des coins avec leurs vues et les échangent contre des objets en jeu</p></div>
     <div class="actions"><button class="btn dark" data-fan-refresh>${icon('refresh')} Relever les vues maintenant</button><a class="btn" href="/fan" target="_blank" rel="noopener">Voir l'espace fan</a></div></div>
     <div class="stack">
+      ${trackingCard(d.tracking)}
       <form class="card card-pad stack" id="fan-settings"><div><h2 style="margin:0;font-size:15px">Réglages</h2>
         <p class="faint" style="margin:2px 0 0;font-size:12px">Bot des fans : <b>${d.fansBot ? (nep.state === 'ready' ? `${esc(nep.tag)} connecté ✅${nep.error ? ` · ⚠️ ${esc(nep.error)}` : ''}` : nep.state === 'error' ? `erreur : ${esc(nep.error)}` : 'connexion…') : 'non configuré'}</b> · Neptune : <b>${d.neptuneKey ? 'relié' : 'non relié'}</b> · ${d.emailApi ? 'Livraison e-mail : <b>automatique ✅</b>' : `API du jeu : <b>${!d.gameApi ? 'non configurée' : d.gameCheck?.ok ? `connectée ✅ (${d.gameCheck.remaining}/${d.gameCheck.limit} dons dispo sur ${Math.round(d.gameCheck.windowSeconds / 60)} min)` : `<span style="color:var(--orange)">⚠️ ${esc(d.gameCheck?.error ?? 'injoignable')}</span>`}</b>`} ${d.apify ? ` · Apify : <b style="${d.apify.limit && d.apify.used / d.apify.limit >= 0.8 ? 'color:var(--orange)' : ''}">${d.apify.used.toFixed(2)} $${d.apify.limit ? ` / ${d.apify.limit} $` : ''}${d.apify.limit && d.apify.used / d.apify.limit >= 0.8 ? ' ⚠️ presque au plafond (TikTok / Insta se mettront en pause)' : ''}</b>${d.apify.resetAt ? ` (remise à zéro le ${new Date(d.apify.resetAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })})` : ''}` : ''} · Messages privés (7 j) : <b>${d.notifications.sent} envoyés</b>${d.notifications.failed ? `, ${d.notifications.failed} impossibles (DM fermés)` : ''}${d.notifications.pending ? `, ${d.notifications.pending} en attente` : ''}</p></div>
         <div class="grid-form">
@@ -1703,6 +1801,7 @@ async function pageBoutique() {
         </tbody></table></div></div>
     </div>`;
   const root = main();
+  onSeg(root, 'trplat', (v) => ($('#tr-rows', root).innerHTML = trackingRows(d.tracking, v)));
   bindRows(root);
   $('[data-fan-refresh]', root).addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
@@ -1974,6 +2073,406 @@ async function pageClients() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Animations : apparition en cascade + chiffres qui comptent
+// ---------------------------------------------------------------------------
+
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Fait compter le premier nombre d'un élément (« 12,4 k », « 1 250 € »…) de 0 jusqu'à sa valeur. */
+function countUp(el) {
+  const node = [...el.childNodes].find((n) => n.nodeType === 3 && /\d/.test(n.textContent));
+  if (!node) return;
+  const text = node.textContent;
+  const m = text.match(/\d[\d\s  ]*(?:,\d+)?/);
+  if (!m) return;
+  const raw = m[0].trimEnd();
+  const target = Number(raw.replace(/[\s  ]/g, '').replace(',', '.'));
+  if (!Number.isFinite(target) || target === 0) return;
+  const dec = raw.includes(',') ? raw.split(',')[1].length : 0;
+  const grouped = /[\s  ]\d/.test(raw);
+  const fmt = (v) => (grouped ? v.toLocaleString('fr-FR', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : v.toFixed(dec).replace('.', ','));
+  const start = performance.now();
+  const dur = 900;
+  const step = (t) => {
+    const p = Math.min(1, (t - start) / dur);
+    const v = target * (1 - Math.pow(1 - p, 3));
+    node.textContent = text.replace(raw, fmt(p === 1 ? target : v));
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function animatePage(root = main()) {
+  if (REDUCED || !document.documentElement.classList.contains('neo')) return;
+  let i = 0;
+  for (const el of $$(':scope > .page-head, :scope > .stack > *, :scope > .bento > *, .kpis > *, .cards > *, .client-pick > *, :scope > .card', root)) {
+    if (el.matches('.kpis, .cards, .bento, .client-pick') || el.closest('.rise')) continue;
+    el.classList.add('rise');
+    el.style.setProperty('--i', Math.min(i++, 14));
+  }
+  $$('.k-value, .hero-num, .kp .v, .mini-stats b, .trio b, .gauge .gc b', root).forEach(countUp);
+}
+
+// ---------------------------------------------------------------------------
+// Thèmes : Mars (clair), Sauge (clair vert), Nuit (ancienne DA sombre)
+// ---------------------------------------------------------------------------
+
+const THEMES = [['mars', 'Mars', '#E8542F'], ['sauge', 'Sauge', '#5E8B66'], ['nuit', 'Nuit', '#2A1510']];
+function setTheme(t) {
+  const html = document.documentElement;
+  html.classList.add('theming');
+  html.dataset.theme = t;
+  html.classList.toggle('neo', t !== 'nuit');
+  try {
+    localStorage.setItem('mars.theme', t);
+  } catch {}
+  $$('.themes button').forEach((b) => b.classList.toggle('on', b.dataset.theme === t));
+  setTimeout(() => html.classList.remove('theming'), 600);
+  // Les graphiques se redessinent dans les nouvelles couleurs
+  $$('.chart .draw, .spark path, .gauge .gv, .gauge .needle, .minibars i').forEach((el) => {
+    el.style.animation = 'none';
+    void el.getBoundingClientRect();
+    el.style.animation = '';
+  });
+}
+function mountThemes() {
+  const bar = document.createElement('div');
+  bar.className = 'themes';
+  const cur = document.documentElement.dataset.theme || 'mars';
+  bar.innerHTML = THEMES.map(([id, label, c]) => `<button data-theme="${id}" class="${id === cur ? 'on' : ''}"><i style="background:${c}"></i>${label}</button>`).join('');
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-theme]');
+    if (b) setTheme(b.dataset.theme);
+  });
+  document.body.append(bar);
+}
+
+// ---------------------------------------------------------------------------
+// Lune : l'assistant du dashboard. Tout est calculé ici à partir des données de Mars
+// (règles par mots-clés) : gratuit, aucune clé d'API, rien n'est envoyé ailleurs.
+// ---------------------------------------------------------------------------
+
+const ORB = '<span class="orb"><span class="eyes"><i></i><i></i></span></span>';
+const fold = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const SUGGEST = ['Le relevé de cette nuit est bon ?', 'Combien de vues cette semaine ?', 'Qui est mon meilleur clippeur ?', 'Qui n’a pas posté depuis longtemps ?', 'Combien de posts ce mois-ci ?', 'Combien de comptes à vérifier ?', 'Passe en mode nuit'];
+
+const Lune = (() => {
+  let panel;
+  let pendingFocus = null;
+  let sound = false;
+  let rec = null;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function build() {
+    if (panel) return;
+    panel = document.createElement('aside');
+    panel.className = 'lune';
+    panel.setAttribute('aria-label', 'Lune');
+    panel.innerHTML = `<header>${ORB}<div><b>Lune</b></div><span class="sp"></span>
+        <button data-sound title="Lire les réponses à voix haute">🔈</button><button data-reset title="Effacer">↺</button><button data-close title="Fermer">✕</button></header>
+      <div class="log"></div>
+      <form><input placeholder="Pose ta question…" autocomplete="off">${SR ? `<button type="button" data-mic title="Parler">${icon('mic')}</button>` : ''}<button type="submit" title="Envoyer">${icon('send')}</button></form>`;
+    document.body.append(panel);
+    reset();
+    $('form', panel).addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = $('input', panel);
+      const q = input.value.trim();
+      input.value = '';
+      if (q) ask(q);
+    });
+    panel.addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-q]');
+      if (chip) return ask(chip.dataset.q);
+      const f = e.target.closest('[data-focus]');
+      if (f) return focus(f.dataset.focus);
+      const go = e.target.closest('[data-go]');
+      if (go) {
+        location.hash = go.dataset.go;
+        if (innerWidth < 760) close();
+        return;
+      }
+      if (e.target.closest('[data-close]')) return close();
+      if (e.target.closest('[data-reset]')) return reset();
+      if (e.target.closest('[data-mic]')) return listen();
+      const sb = e.target.closest('[data-sound]');
+      if (sb) {
+        sound = !sound;
+        sb.classList.toggle('on', sound);
+        sb.textContent = sound ? '🔊' : '🔈';
+        if (!sound) speechSynthesis?.cancel();
+      }
+    });
+  }
+
+  function reset() {
+    $('.log', panel).innerHTML = `<div class="bot">${ORB}<div><div class="say">Tu veux savoir quoi ?</div>
+      <div class="chips">${SUGGEST.map((q) => `<button data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div></div>`;
+  }
+
+  const log = () => $('.log', panel);
+  const scroll = () => log().scrollTo({ top: log().scrollHeight, behavior: 'smooth' });
+
+  function open(q) {
+    build();
+    panel.classList.add('open');
+    document.documentElement.classList.add('lune-open');
+    $('.orb-hint')?.remove();
+    if (q) ask(q);
+    else setTimeout(() => $('input', panel).focus(), 300);
+  }
+  function close() {
+    panel?.classList.remove('open');
+    document.documentElement.classList.remove('lune-open');
+  }
+  const toggle = () => (panel?.classList.contains('open') ? close() : open());
+
+  /** Met en avant une carte de l'accueil (contour + léger zoom), en y allant si besoin. */
+  function focus(key) {
+    if (innerWidth < 760) close();
+    const el = $(`[data-ai="${key}"]`);
+    const onHome = /^#\/agence/.test(location.hash) || (!location.hash && homeRoute() === 'agence');
+    if (!el || !onHome) {
+      pendingFocus = key;
+      if (location.hash === '#/agence') router();
+      else location.hash = '#/agence';
+      return;
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.remove('ai-focus');
+    void el.offsetWidth;
+    el.classList.add('ai-focus');
+    setTimeout(() => el.classList.remove('ai-focus'), 2500);
+  }
+  function afterRender() {
+    if (!pendingFocus) return;
+    const key = pendingFocus;
+    pendingFocus = null;
+    setTimeout(() => focus(key), 450);
+  }
+
+  function subtitle(html, ms = 4000) {
+    $('.subtitle')?.remove();
+    const el = document.createElement('div');
+    el.className = 'subtitle';
+    el.innerHTML = html;
+    document.body.append(el);
+    clearTimeout(subtitle.t);
+    subtitle.t = setTimeout(() => el.remove(), ms);
+    return el;
+  }
+  function speak(text) {
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'fr-FR';
+    const v = speechSynthesis.getVoices().find((x) => x.lang?.startsWith('fr'));
+    if (v) u.voice = v;
+    u.rate = 1.05;
+    speechSynthesis.speak(u);
+  }
+
+  function listen() {
+    if (!SR) return;
+    const mic = $('[data-mic]', panel);
+    if (rec) return rec.stop();
+    rec = new SR();
+    rec.lang = 'fr-FR';
+    rec.interimResults = true;
+    let finalText = '';
+    mic.classList.add('rec');
+    const show = (t) => subtitle(`« ${esc(t).replace(/\blune\b/gi, '<b>$&</b>')} »`, 6000);
+    rec.onresult = (e) => {
+      const t = [...e.results].map((r) => r[0].transcript).join('');
+      show(t);
+      if (e.results[e.results.length - 1].isFinal) finalText = t;
+    };
+    rec.onerror = () => toast('Micro indisponible : autorise-le dans ton navigateur', true);
+    rec.onend = () => {
+      mic.classList.remove('rec');
+      rec = null;
+      if (finalText.trim()) ask(finalText.trim(), { voice: true });
+    };
+    rec.start();
+  }
+
+  async function ask(q, { voice = false } = {}) {
+    open();
+    log().insertAdjacentHTML('beforeend', `<div class="me">${esc(q)}</div><div class="bot" data-wait>${ORB}<div><div class="typing"><i></i><i></i><i></i></div></div></div>`);
+    scroll();
+    let a;
+    try {
+      [a] = await Promise.all([answer(q), new Promise((r) => setTimeout(r, 550))]);
+    } catch (err) {
+      a = { html: `Je n’ai pas réussi à lire les chiffres (${esc(err.message)}). Réessaie dans un instant.` };
+    }
+    const wait = $('[data-wait]', log());
+    wait.removeAttribute('data-wait');
+    $('div', wait).innerHTML = `<div class="say">${a.html}</div>${a.card ?? ''}${a.focus || a.go ? `<div class="acts">${a.focus ? `<button data-focus="${a.focus}">Voir</button>` : ''}${a.go ? `<button data-go="${esc(a.go[0])}">${esc(a.go[1])}</button>` : ''}</div>` : ''}${a.chips ? `<div class="chips">${a.chips.map((c) => `<button data-q="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}`;
+    $$('.k-big', wait).forEach(countUp);
+    scroll();
+    const plain = a.speak ?? a.html.replace(/<[^>]+>/g, '');
+    if (voice || sound) {
+      subtitle(`${ORB}<span><b>Lune</b> ${esc(plain)}</span>`, Math.max(3500, plain.length * 70));
+      speak(plain);
+    }
+  }
+
+  // --- Le « cerveau » : comprend la question et va chercher les vrais chiffres ---
+
+  const PERIODS = [
+    [/aujourd|ce jour|today/, 'today', 'aujourd’hui'],
+    [/3 mois|trimestre/, '90d', 'ces 3 derniers mois'],
+    [/6 mois|semestre/, '180d', 'ces 6 derniers mois'],
+    [/\ban\b|annee|12 mois/, '365d', 'cette année'],
+    [/mois|30 ?j/, '30d', 'ces 30 derniers jours'],
+    [/semaine|7 ?j|hebdo/, '7d', 'ces 7 derniers jours'],
+    [/tout|total|depuis le debut|all/, 'all', 'depuis le début'],
+  ];
+  function periodOf(t) {
+    for (const [re, preset, label] of PERIODS) if (re.test(t)) return { preset, label };
+    return { preset: store.preset === 'custom' ? '7d' : store.preset, label: fold(periodLabel()) === 'all-time' ? 'depuis le début' : `sur « ${periodLabel().toLowerCase()} »` };
+  }
+  const overview = (preset) => api(`/api/overview?${qs({ preset })}`);
+  const b = (x) => `<b>${x}</b>`;
+  const pct = (p) => (p == null ? '' : `, soit ${b(`${p > 0 ? '+' : ''}${p} %`)} par rapport à la période d’avant`);
+  function bars(series, key) {
+    const vals = series.slice(-24).map((s) => s[key]);
+    const max = Math.max(1, ...vals);
+    const hi = vals.indexOf(Math.max(...vals));
+    return `<div class="hb">${vals.map((v, i) => `<i style="--i:${i};height:${Math.max(3, (v / max) * 100)}%" class="${i === hi ? 'hi' : ''}" title="${fmtK(v)}"></i>`).join('')}</div>`;
+  }
+  const mini = (label, value, delta, extra = '') =>
+    `<div class="mini"><small>${esc(label)}</small><div class="big"><span class="k-big num">${value}</span>${delta === undefined ? '' : deltaPill(delta)}</div>${extra}</div>`;
+  const whoList = (rows, val) =>
+    `<div class="mini">${rows.map((r, i) => `<a class="who" href="#/clipper/${r.id}" style="justify-content:space-between"><span class="who">${avatar(r.username)}<span><b>${i + 1}. ${esc(r.username)}</b>${plats(r.platforms)}</span></span><b class="num">${val(r)}</b></a>`).join('')}</div>`;
+
+  async function answer(q) {
+    const t = fold(q);
+    if (/nuit|sombre|dark|noir/.test(t) && /mode|theme|passe|met|active/.test(t)) {
+      setTheme('nuit');
+      return { html: 'Mode nuit.' };
+    }
+    if (/sauge|vert/.test(t) && /mode|theme|passe|met/.test(t)) {
+      setTheme('sauge');
+      return { html: 'Thème Sauge.' };
+    }
+    if (/clair|jour|light|mars/.test(t) && /mode|theme|passe|met/.test(t)) {
+      setTheme('mars');
+      return { html: 'Thème Mars.' };
+    }
+    if (/^(salut|bonjour|yo|hello|coucou|wesh)\b/.test(t) && t.length < 20) return { html: 'Salut, tu veux savoir quoi ?', chips: SUGGEST.slice(0, 4) };
+
+    const p = periodOf(t);
+    if (/releve|tracking|track|recup|collecte|bug|erreur/.test(t)) {
+      const tr = (await api('/api/fans')).tracking;
+      if (!tr) return { html: 'Aucun programme fans réglé ici.' };
+      const NAME = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram' };
+      const parts = Object.entries(tr.platforms).filter(([, x]) => x.total).map(([p, x]) => `${NAME[p]} ${b(`${x.ok + x.waiting}/${x.total}`)}`);
+      return {
+        html: `Relevé de la nuit : ${parts.join(', ')}. ${tr.problems.length ? `${b(tr.problems.length)} compte(s) à régler.` : 'Tout est relu.'}`,
+        card: tr.problems.length ? `<div class="mini">${tr.problems.slice(0, 6).map((p) => `<div class="who" style="justify-content:space-between;padding:5px 0"><span><b>${NAME[p.platform]} @${esc(p.handle)}</b> <span class="faint">${esc(p.username)}</span></span><span class="delta down">${p.status === 'error' ? 'erreur' : p.status === 'late' ? 'en retard' : 'jamais relu'}</span></div>`).join('')}</div>` : '',
+        go: ['#/boutique', 'Voir le détail'],
+      };
+    }
+    if (/compte.*(verif|valid)|a verifier|commande|livrer|boutique|echange/.test(t)) {
+      const f = await api('/api/fans');
+      const toReview = f.accountsToReview?.length ?? 0;
+      const pending = (f.orders ?? []).filter((o) => o.status === 'pending').length;
+      return {
+        html: `Tu as ${b(toReview)} compte${toReview > 1 ? 's' : ''} à vérifier et ${b(pending)} commande${pending > 1 ? 's' : ''} à livrer${toReview + pending ? '.' : ' : rien en attente'}`,
+        card: `<div class="mini" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><small>Comptes à vérifier</small><div class="big"><span class="k-big num">${toReview}</span></div></div><div><small>Commandes à livrer</small><div class="big"><span class="k-big num">${pending}</span></div></div></div>`,
+        go: ['#/boutique', 'Ouvrir la boutique fans'],
+      };
+    }
+
+    const d = await overview(p.preset);
+    const k = d.kpis;
+    const rows = [...d.leaderboard].sort((a, x) => x.views - a.views);
+    const named = rows.find((r) => r.username.length >= 3 && t.includes(fold(r.username)));
+    if (named) {
+      const rank = rows.indexOf(named) + 1;
+      return {
+        html: `${b(esc(named.username))} a fait ${b(fmtK(named.views))} vues avec ${b(named.posts)} post${named.posts > 1 ? 's' : ''} ${p.label}. Il est ${b(`${rank}${rank === 1 ? 'er' : 'e'}`)} sur ${rows.length}${named.viewsDeltaPercent != null ? `, ${named.viewsDeltaPercent >= 0 ? 'en hausse' : 'en baisse'} de ${b(`${Math.abs(named.viewsDeltaPercent)} %`)}` : ''}.`,
+        card: mini('Vues', fmtK(named.views), named.viewsDeltaPercent),
+        go: [`#/clipper/${named.id}`, 'Ouvrir sa fiche'],
+      };
+    }
+    if (/meilleur|top|premier|podium|classement|qui .*(plus|mieux)|best/.test(t)) {
+      if (!rows.length) return { html: 'Pas encore de clippeur sur cette période.' };
+      const byPosts = /post|\bclips?\b|regulier/.test(t);
+      const top = [...rows].sort((a, x) => (byPosts ? x.posts - a.posts : x.views - a.views)).slice(0, 3);
+      return {
+        html: `Ton meilleur clippeur ${p.label}, c’est ${b(esc(top[0].username))} avec ${b(byPosts ? `${top[0].posts} posts` : `${fmtK(top[0].views)} vues`)}${top[1] ? `, devant ${esc(top[1].username)}` : ''}.`,
+        speak: `Ton meilleur clippeur ${p.label}, c’est ${top[0].username} avec ${byPosts ? `${top[0].posts} posts` : `${fmtK(top[0].views)} vues`}.`,
+        card: whoList(top, (r) => (byPosts ? `${r.posts} posts` : fmtK(r.views))),
+        focus: 'top',
+      };
+    }
+    if (/inactif|pas poste|rien poste|relanc|alerte|retard|dort|longtemps|absent|baisse/.test(t)) {
+      const al = d.alerts;
+      if (!al.length) return { html: 'Personne à relancer.', focus: 'alerts' };
+      return {
+        html: `${b(al.length)} clippeur${al.length > 1 ? 's' : ''} à relancer. Le plus urgent : ${b(esc(al[0].username))}${al[0].inactiveDays != null ? `, ${b(`${al[0].inactiveDays} jours`)} sans poster` : ''}.`,
+        card: `<div class="mini">${al.slice(0, 5).map((a) => `<a class="who" href="#/clipper/${a.clipperId}" style="justify-content:space-between">${`<span class="who">${avatar(a.username)}<b>${esc(a.username)}</b></span>`}<span class="delta down">${a.inactiveDays != null ? `${a.inactiveDays} j` : `−${a.dropPercent} %`}</span></a>`).join('')}</div>`,
+        focus: 'alerts',
+      };
+    }
+    if (/verser|payer|paie|argent|euro|€|remuner/.test(t)) {
+      return { html: `À verser aux clippeurs ${p.label} : ${b(euro(k.payout.value))}.`, card: mini('À verser', euro(k.payout.value)), focus: 'goal' };
+    }
+    if (/objectif|rythme/.test(t)) {
+      const target = k.posts.objectivePerDay * d.range.days;
+      return target
+        ? { html: `${b(k.posts.value)} posts sur un objectif de ${b(target)} ${p.label} : ${b(`${Math.round((k.posts.value / target) * 100)} %`)}.`, focus: 'goal' }
+        : { html: 'Aucun objectif de posts n’est réglé (Paramètres).', go: ['#/parametres', 'Ouvrir les paramètres'] };
+    }
+    if (/clippeur|clipper|actif|combien de (fan|membre)|inscrit/.test(t) && !/vue/.test(t)) {
+      const act = rows.filter((r) => r.posts > 0).length;
+      return { html: `${b(act)} clippeurs ont posté ${p.label}, sur ${b(rows.length)} au total.`, card: mini('Clippeurs actifs', `${act} / ${rows.length}`), focus: 'actives' };
+    }
+    if (/post|\bclips?\b|publi|video/.test(t) && !/vue/.test(t)) {
+      return {
+        html: `${b(k.posts.value)} posts publiés ${p.label}${pct(k.posts.deltaPercent)}.`,
+        card: mini('Posts', String(k.posts.value), k.posts.deltaPercent, bars(d.series, 'posts')),
+        focus: 'posts',
+      };
+    }
+    if (/vue|perf|combien|stat|resume|bilan|chiffre|marche|ca donne|how/.test(t)) {
+      const best = d.series.reduce((a, s) => (s.views > (a?.views ?? -1) ? s : a), null);
+      return {
+        html: `Tu as fait ${b(fmtK(k.views.value))} vues ${p.label} avec ${b(k.posts.value)} posts${pct(k.views.deltaPercent)}.${best?.views ? ` Meilleur jour : ${b(dm(best.day))} (${fmtK(best.views)}).` : ''}`,
+        speak: `Tu as fait ${fmtK(k.views.value)} vues ${p.label}.`,
+        card: mini(`Vues · ${p.label}`, fmtK(k.views.value), k.views.deltaPercent, bars(d.series, 'views')),
+        focus: p.preset === 'today' ? 'live' : 'chart',
+      };
+    }
+    return {
+      html: 'Pas compris. Essaie : vues, posts, meilleur clippeur, qui relancer, comptes à vérifier, commandes, ou un pseudo.',
+      chips: SUGGEST.slice(0, 4),
+    };
+  }
+
+  function mountFloating() {
+    const orb = document.createElement('button');
+    orb.className = 'orb float';
+    orb.title = 'Lune';
+    orb.innerHTML = '<span class="eyes"><i></i><i></i></span>';
+    orb.addEventListener('click', toggle);
+    document.body.append(orb);
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        $('#search')?.focus();
+      }
+      if (e.key === 'Escape') close();
+    });
+  }
+
+  return { open, close, toggle, ask, afterRender, mountFloating };
+})();
+
 const ROUTES = {
   clients: pageClients,
   agence: pageAgence,
@@ -1998,6 +2497,8 @@ async function router() {
   window.scrollTo(0, 0);
   try {
     await page(arg);
+    animatePage();
+    Lune.afterRender();
   } catch (err) {
     main().innerHTML = `<div class="card placeholder"><h2>Oups</h2><p>${esc(err.message)}</p></div>`;
   }
@@ -2026,6 +2527,8 @@ $('#sidebar').addEventListener('click', (e) => {
   else location.hash = target;
 });
 renderTopbar();
+mountThemes();
+Lune.mountFloating();
 loadMeta()
   .catch(() => {})
   .finally(router);

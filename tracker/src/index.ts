@@ -46,14 +46,15 @@ const tiktokCreds = config.TIKTOK_CLIENT_KEY && config.TIKTOK_CLIENT_SECRET ? { 
 const tiktokStore = new TikTokTokenStore(db);
 if (tiktokCreds && config.FETCHER_MODE === 'live') {
   fetchers.tiktok = new TikTokOfficialFetcher(tiktokStore, tiktokCreds, config.VIDEOS_PER_ACCOUNT, fetchers.tiktok);
-  fanFetchers.tiktok = new TikTokOfficialFetcher(tiktokStore, tiktokCreds, 40, config.TIKTOK_APIFY_FALLBACK === '1' ? fanFetchers.tiktok : undefined);
+  // Gratuit : 200 derniers clips par nuit (pages de 20), pour que les vues des vieux clips continuent de compter
+  fanFetchers.tiktok = new TikTokOfficialFetcher(tiktokStore, tiktokCreds, 200, config.TIKTOK_APIFY_FALLBACK === '1' ? fanFetchers.tiktok : undefined);
 }
 // Instagram connecté par le clippeur (API officielle gratuite, compte pro / créateur) ; les autres restent sur Apify
 const instagramCreds = config.INSTAGRAM_APP_ID && config.INSTAGRAM_APP_SECRET ? { appId: config.INSTAGRAM_APP_ID, appSecret: config.INSTAGRAM_APP_SECRET } : undefined;
 const instagramStore = new InstagramTokenStore(db);
 if (instagramCreds && config.FETCHER_MODE === 'live') {
   fetchers.instagram = new InstagramOfficialFetcher(instagramStore, config.VIDEOS_PER_ACCOUNT, fetchers.instagram);
-  fanFetchers.instagram = new InstagramOfficialFetcher(instagramStore, 15, config.INSTAGRAM_APIFY_FALLBACK === '1' ? fanFetchers.instagram : undefined);
+  fanFetchers.instagram = new InstagramOfficialFetcher(instagramStore, 50, config.INSTAGRAM_APIFY_FALLBACK === '1' ? fanFetchers.instagram : undefined);
 }
 // Rattrapage (créateur avec countViewsFrom, ex. Loann) : chaque compte de fan est relu UNE fois avec TOUS ses clips
 // depuis la date de départ (jusqu'à 500) ; ensuite il repasse au rythme normal (5 vidéos)
@@ -240,7 +241,20 @@ const stopCollect = every('collecte', config.COLLECT_INTERVAL_MINUTES, async () 
   const last = repo.lastPublishedByAccount();
   const free = connected;
   const fansResult = await collectAll(repo, fanFetchers, Date.now, (account, now) => account.clientId !== fanClient || !fanAccountDue(account, last.get(account.id), parisMidnight(now), now, free.has(account.id)));
-  return { agence, fans: fansResult, ...(rattrapage ? { rattrapage } : {}) };
+  // 2e chance dans la nuit : un compte en erreur au relevé (réseau, API qui ne répond pas…) est relu une fois, 45 min plus tard
+  const midnight = parisMidnight(Date.now());
+  const retry = fans.botState<{ since: number; ids: number[] }>('tracking-retry', { since: 0, ids: [] });
+  const tried = new Set(retry.since === midnight ? retry.ids : []);
+  const toRetry = repo
+    .listActiveAccounts()
+    .filter((a) => a.clientId === fanClient && a.lastError && !tried.has(a.id) && a.lastCheckedAt !== null && a.lastCheckedAt >= midnight && Date.now() - a.lastCheckedAt >= 45 * 60_000);
+  let deuxièmeEssai;
+  if (toRetry.length) {
+    const ids = new Set(toRetry.map((a) => a.id));
+    fans.setBotState('tracking-retry', { since: midnight, ids: [...tried, ...ids] });
+    deuxièmeEssai = await collectAll(repo, fanFetchers, Date.now, (account) => !ids.has(account.id));
+  }
+  return { agence, fans: fansResult, ...(rattrapage ? { rattrapage } : {}), ...(deuxièmeEssai ? { deuxièmeEssai } : {}) };
 });
 const notifier = bot?.notifier;
 const stopRelance = notifier

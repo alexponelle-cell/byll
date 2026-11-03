@@ -23,6 +23,32 @@ async function runActor<T>(token: string, actorId: string, input: unknown): Prom
 /** « 2026-08-01 » (format de date des actors Apify). */
 const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
 
+/**
+ * Gros posteur (ex. 10 clips par jour) : si les N clips lus sont TOUS plus récents que la dernière lecture,
+ * d'autres ont sûrement été postés entre-temps et ne seraient jamais vus. On relit alors tout depuis la
+ * dernière lecture (jusqu'à 30). Ne coûte un peu plus que pour ceux qui postent beaucoup.
+ */
+export function needsCatchUp(publishedAts: Array<number | undefined>, limit: number, lastCheckedAt: number | null | undefined): boolean {
+  if (!lastCheckedAt || publishedAts.length < limit) return false;
+  return publishedAts.every((t) => t !== undefined && t > lastCheckedAt);
+}
+const CATCH_UP = 30;
+const mergeVideos = <T extends { platformVideoId: string }>(a: T[], b: T[]) => [...new Map([...a, ...b].map((v) => [v.platformVideoId, v])).values()];
+
+/**
+ * Légende + hashtags rangés à part par l'actor (certains reels n'ont pas les #tags dans « caption »).
+ * Sans ça, un clip avec #micka bien mis était refusé (« #micka manquant »).
+ */
+export function withHashtags(text: unknown, tags: unknown): string | undefined {
+  const base = typeof text === 'string' ? text : '';
+  const list = (Array.isArray(tags) ? tags : [])
+    .map((t) => (typeof t === 'string' ? t : t && typeof t === 'object' && 'name' in t ? String((t as { name: unknown }).name) : ''))
+    .map((t) => t.replace(/^#/, '').trim())
+    .filter((t) => t && !base.toLowerCase().includes(`#${t.toLowerCase()}`));
+  const out = [base, list.map((t) => `#${t}`).join(' ')].filter(Boolean).join(' ').trim();
+  return out || undefined;
+}
+
 const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
 export class TikTokApifyFetcher implements PlatformFetcher {
@@ -37,14 +63,18 @@ export class TikTokApifyFetcher implements PlatformFetcher {
     private readonly profileActorId = 'clockworks~tiktok-profile-scraper',
   ) {}
 
-  async fetchAccount(account: { handle: string }): Promise<FetchedAccount> {
-    const items = await runActor<Record<string, any>>(this.token, this.actorId, {
-      profiles: [account.handle],
-      resultsPerPage: this.maxVideos,
-      ...(this.since ? { oldestPostDateUnified: isoDay(this.since) } : {}),
-      shouldDownloadVideos: false,
-      shouldDownloadCovers: false,
-    });
+  async fetchAccount(account: { handle: string; lastCheckedAt?: number | null }): Promise<FetchedAccount> {
+    const run = (limit: number, since?: number) =>
+      runActor<Record<string, any>>(this.token, this.actorId, {
+        profiles: [account.handle],
+        resultsPerPage: limit,
+        ...(since ? { oldestPostDateUnified: isoDay(since) } : {}),
+        shouldDownloadVideos: false,
+        shouldDownloadCovers: false,
+      });
+    let items = await run(this.maxVideos, this.since);
+    if (!this.since && needsCatchUp(items.filter((i) => i.id).map((i) => (i.createTimeISO ? Date.parse(i.createTimeISO) : undefined)), this.maxVideos, account.lastCheckedAt))
+      items = mergeVideos(items.filter((i) => i.id).map((i) => ({ ...i, platformVideoId: String(i.id) })), (await run(CATCH_UP, account.lastCheckedAt! - 86_400_000)).filter((i) => i.id).map((i) => ({ ...i, platformVideoId: String(i.id) })));
     return {
       displayName: items[0]?.authorMeta?.nickName,
       externalId: items[0]?.authorMeta?.id,
@@ -56,7 +86,7 @@ export class TikTokApifyFetcher implements PlatformFetcher {
           platformVideoId: String(i.id),
           url: i.webVideoUrl,
           thumbnailUrl: i.videoMeta?.coverUrl ?? i.covers?.[0],
-          title: i.text,
+          title: withHashtags(i.text, i.hashtags),
           publishedAt: i.createTimeISO ? Date.parse(i.createTimeISO) : undefined,
           views: num(i.playCount) ?? 0,
           likes: num(i.diggCount),
@@ -92,12 +122,17 @@ export class InstagramApifyFetcher implements PlatformFetcher {
     return { externalId: p.id ? String(p.id) : undefined, bio: p.biography ?? '', followers: num(p.followersCount) };
   }
 
-  async fetchAccount(account: { handle: string }): Promise<FetchedAccount> {
-    const items = await runActor<Record<string, any>>(this.token, this.actorId, {
-      username: [account.handle],
-      resultsLimit: this.maxVideos,
-      ...(this.since ? { onlyPostsNewerThan: isoDay(this.since) } : {}),
-    });
+  async fetchAccount(account: { handle: string; lastCheckedAt?: number | null }): Promise<FetchedAccount> {
+    const run = (limit: number, since?: number) =>
+      runActor<Record<string, any>>(this.token, this.actorId, {
+        username: [account.handle],
+        resultsLimit: limit,
+        ...(since ? { onlyPostsNewerThan: isoDay(since) } : {}),
+      });
+    const key = (i: Record<string, any>) => String(i.shortCode ?? i.id);
+    let items = await run(this.maxVideos, this.since);
+    if (!this.since && needsCatchUp(items.filter((i) => i.shortCode || i.id).map((i) => (i.timestamp ? Date.parse(i.timestamp) : undefined)), this.maxVideos, account.lastCheckedAt))
+      items = mergeVideos(items.filter((i) => i.shortCode || i.id).map((i) => ({ ...i, platformVideoId: key(i) })), (await run(CATCH_UP, account.lastCheckedAt! - 86_400_000)).filter((i) => i.shortCode || i.id).map((i) => ({ ...i, platformVideoId: key(i) })));
     return {
       displayName: items[0]?.ownerFullName,
       externalId: items[0]?.ownerId,
@@ -107,7 +142,7 @@ export class InstagramApifyFetcher implements PlatformFetcher {
           platformVideoId: String(i.shortCode ?? i.id),
           url: i.url,
           thumbnailUrl: i.displayUrl ?? i.thumbnailUrl,
-          title: i.caption,
+          title: withHashtags(i.caption, i.hashtags),
           publishedAt: i.timestamp ? Date.parse(i.timestamp) : undefined,
           views: num(i.videoPlayCount) ?? num(i.videoViewCount) ?? 0,
           likes: num(i.likesCount),

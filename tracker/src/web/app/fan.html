@@ -295,6 +295,7 @@
     *, *::before, *::after { animation: none !important; transition: none !important; }
     .reveal { opacity: 1; transform: none; }
   }
+.clip.xtra { display: none !important; }
 </style>
 </head>
 <body>
@@ -579,10 +580,11 @@ function pageClip() {
   </section>
   <section>
     <div class="head-row reveal"><div><span class="eyebrow">📈 Tes clips</span><h2>Mes clips</h2></div><div class="coin-pill">${coin('coin')}${fmt(ME.clipCount)}<small>CLIPS</small></div></div>
-    <div class="clips">${clips.map((c) => `<a class="card clip wiggle reveal" ${c.url ? `href="${esc(c.url)}" target="_blank" rel="noopener"` : ''}>
+    <div class="clips">${clips.map((c, i) => `<a class="card clip wiggle reveal${i >= 24 ? ' xtra' : ''}" ${c.url ? `href="${esc(c.url)}" target="_blank" rel="noopener"` : ''}>
       <div class="th">${c.thumbnail ? `<img src="${esc(c.thumbnail)}" alt="" loading="lazy">` : '🎬'}<span class="pf">${PLATFORM[c.platform]}</span>${c.counted ? `<span class="earn">+${fmt(c.coins)} ${coin('coin')}</span>` : ''}</div>
       <div class="meta"><b>${esc(c.title || 'Mon clip')}</b><small>👀 ${compact(c.views)} vues${c.counted ? '' : ` · ${clipWhy(c)}`}</small></div></a>`).join('')
       || '<div class="card empty reveal" style="grid-column:1/-1"><div class="e">📭</div>Pas encore de clip détecté. Tes clips apparaissent ici dès que tes comptes sont suivis.</div>'}</div>
+    ${ME.clips.length > 24 ? `<button class="btn" style="margin:18px auto 0;display:flex" onclick="document.querySelectorAll('.clip.xtra').forEach((e,i)=>{if(i<48)e.classList.remove('xtra')});if(!document.querySelector('.clip.xtra'))this.remove()">Voir plus de clips (${ME.clips.length - 24})</button>` : ''}
   </section>`;
 }
 function podium(lb) {
@@ -651,7 +653,7 @@ function route() {
     for (const k of ['tiktok', 'youtube', 'instagram', 'reward']) if (f.get(k)) body[k] = String(f.get(k));
     try {
       const r = await api('/api/fan/register', { method: 'POST', body });
-      const warn = [...r.conflicts.map((a) => `@${a.handle} est déjà relié à quelqu'un d'autre : préviens le staff`), ...r.invalid.map((p) => `${PLATFORM[p]} : mets ton @ ou le lien du profil`), ...(r.rewardError ? [r.rewardError] : [])];
+      const warn = [...r.conflicts.map((a) => `@${a.handle} est déjà relié à quelqu'un d'autre : préviens le staff`), ...r.invalid.map((p) => `${PLATFORM[p]} : mets ton @ ou le lien du profil`), ...(r.notFound ?? []).map((p) => `${PLATFORM[p]} : chaîne introuvable, colle le lien de ta chaîne (youtube.com/@…)`), ...(r.rewardError ? [r.rewardError] : [])];
       if (warn.length) toast(warn.join(' · '), 'err');
       else if (r.missing.length) toast(`Enregistré. Il manque encore : ${r.missing.map((p) => PLATFORM[p]).join(', ')}`);
       else toast(r.registered ? 'Inscription validée ✅ Ton salon privé t’attend sur Discord' : 'Comptes enregistrés ✅', 'ok');

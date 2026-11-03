@@ -7,6 +7,7 @@ import { dayKey as dayKeyOf } from '../domain/time.js';
 import { startOfDay } from '../domain/time.js';
 import { drawMotivation, type MotivationState, motivationMessage } from '../domain/motivation.js';
 import { log } from '../log.js';
+import { trackingMessage } from '../domain/tracking.js';
 import type { FanService } from '../services/fans.js';
 import { ANNOUNCE_CHANNEL, BEST_CLIPS_CHANNEL, ROLE_CLIP_WEEK, ROLE_WEEKEND, bare, ensureTierRoles, LEVELUP_CHANNEL, levelRoleName, ROLE_READER, ROLE_RULES, ROLE_TRAINED, LOG_CHANNEL, RANKING_CHANNEL, ROLE_ALERTS, ROLE_CLIPPER, ROLE_PENDING, ROLE_TOP, VIDEOS_CHANNEL } from './fanServer.js';
 
@@ -398,6 +399,65 @@ export async function relanceFans(client: Client<true>, fans: FanService, now = 
   return sent;
 }
 
+/** Compte introuvable (YouTube surtout : pseudo TikTok ou nom de chaîne à la place du @) : le fan est prévenu une fois dans son salon privé. */
+export async function warnBrokenAccounts(client: Client<true>, fans: FanService, now = Date.now()): Promise<number> {
+  const { hour } = parisClock(now);
+  if (hour < 11 || hour >= 21) return 0;
+  const told = new Set(fans.botState<number[]>('broken-warned', []));
+  const fresh = fans.brokenAccounts().filter((b) => !told.has(b.accountId));
+  if (!fresh.length) return 0;
+  const guilds = setupGuilds(client, fans);
+  const NAME = { youtube: 'ta chaîne YouTube', tiktok: 'ton TikTok', instagram: 'ton Instagram' } as const;
+  const HOW = { youtube: 'le lien de ta chaîne (youtube.com/@…, pas le nom affiché)', tiktok: 'ton @ TikTok exact', instagram: 'ton @ Instagram exact' } as const;
+  let sent = 0;
+  for (const b of fresh.slice(0, 20)) {
+    told.add(b.accountId);
+    const priv = privateOf(guilds, b.discordId);
+    if (!priv) continue;
+    await priv
+      .send({ content: `<@${b.discordId}> ⚠️ On ne trouve pas ${NAME[b.platform]} **@${b.handle}** : ses vues ne sont pas comptées.\nRemets ${HOW[b.platform]} ici 👉 ${fans.signupUrl(b.clipperId, now)}`, allowedMentions: { users: [b.discordId] } })
+      .then(() => sent++)
+      .catch((err) => log.warn(`compte introuvable ${b.discordId} : ${String(err)}`));
+    await pause(300);
+  }
+  fans.setBotState('broken-warned', [...told].slice(-3000));
+  return sent;
+}
+
+/**
+ * Rappel perso « connecte ton TikTok » dans le salon privé (11 h - 21 h) : 3 fois max par fan, tous les 3 jours,
+ * ceux dont le relevé est en pause d'abord, 25 par passage. Connecté = relu chaque nuit, gratuit (plus d'Apify).
+ */
+export async function connectReminders(client: Client<true>, fans: FanService, now = Date.now()): Promise<number> {
+  const { hour } = parisClock(now);
+  if (hour < 11 || hour >= 21) return 0;
+  const state = fans.botState<Record<string, { n: number; at: number }>>('connect-reminders', {});
+  const due = fans
+    .fansToConnect()
+    .filter((f) => (state[f.clipperId]?.n ?? 0) < 3 && now - (state[f.clipperId]?.at ?? 0) >= 3 * 86_400_000)
+    .sort((a, b) => Number(b.paused) - Number(a.paused));
+  if (!due.length) return 0;
+  const guilds = setupGuilds(client, fans);
+  const PF = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube' } as const;
+  let sent = 0;
+  for (const f of due.slice(0, 25)) {
+    const priv = privateOf(guilds, f.discordId);
+    if (!priv) continue;
+    const what = f.platforms.map((p) => PF[p]).join(' et ton ');
+    const intro = f.paused ? `⏸️ Ton ${what} n'est **plus relu** en ce moment : tes nouvelles vues ne comptent pas.` : `📱 Ton ${what} n'est relu que toutes les 2 nuits, et seulement tes 5 derniers clips.`;
+    await priv
+      .send({ content: `<@${f.discordId}> ${intro}\n**Connecte-le en 1 clic** (on ne publie rien) et il est relu **chaque nuit**, tous tes clips 👉 ${fans.connectUrl(f.clipperId, now)}`, allowedMentions: { users: [f.discordId] } })
+      .then(() => {
+        sent++;
+        state[f.clipperId] = { n: (state[f.clipperId]?.n ?? 0) + 1, at: now };
+      })
+      .catch((err) => log.warn(`rappel connexion ${f.discordId} : ${String(err)}`));
+    await pause(300);
+  }
+  fans.setBotState('connect-reminders', state);
+  return sent;
+}
+
 /** Phrase de motivation du jour dans #général (9 h - midi, Paris), une fois par jour, tirage sans répétition. */
 export async function motivationFans(client: Client<true>, fans: FanService, now = Date.now(), random = Math.random): Promise<boolean> {
   const { hour, day } = parisClock(now);
@@ -408,6 +468,20 @@ export async function motivationFans(client: Client<true>, fans: FanService, now
   const { index, bag } = drawMotivation(state, undefined, random);
   for (const g of generals) await g.send({ content: motivationMessage(index), allowedMentions: { parse: ['everyone'] } }).catch((err) => log.warn(`motivation (${g.guild.name}) : ${String(err)}`));
   fans.setBotState('motivation', { day, bag, last: index } satisfies MotivationState);
+  return true;
+}
+
+/** Rapport du relevé de la nuit (YouTube, TikTok, Instagram) dans le salon log du staff, une fois par jour entre 8 h et midi. */
+export async function trackingDigest(client: Client<true>, fans: FanService, now = Date.now()): Promise<boolean> {
+  const { hour, day } = parisClock(now);
+  if (hour < 8 || hour >= 12 || fans.botState<string>('tracking-digest', '') === day) return false;
+  const report = fans.trackingReport(now);
+  if (!report) return false;
+  const logs = setupGuilds(client, fans).map((g) => channel(g, LOG_CHANNEL)).filter((c): c is TextChannel => !!c);
+  if (!logs.length) return false;
+  const content = trackingMessage(report);
+  for (const c of logs) await c.send({ content, allowedMentions: { parse: [] } }).catch((err) => log.warn(`relevé de la nuit (${c.guild.name}) : ${String(err)}`));
+  fans.setBotState('tracking-digest', day);
   return true;
 }
 

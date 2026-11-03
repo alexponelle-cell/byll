@@ -141,6 +141,35 @@ describe('programme fans (Neptune)', () => {
     expect(squiduu.signupUrl(fan.id)).toContain('next=inscription');
   });
 
+  it('inscription sur le site : chaîne YouTube introuvable refusée tout de suite, le reste est gardé', async () => {
+    const squiduu = new FanService(repo, new FanRepo(repo.db), agency, 'https://site.test/', async () => null, creatorConfig('squiduu'));
+    squiduu.fetchers = { youtube: { platform: 'youtube', fetchAccount: async () => ({ videos: [] }), fetchProfile: async (a: { handle: string }) => {
+      if (a.handle === 'pseudotiktok') throw new Error('Chaîne YouTube introuvable : pseudotiktok');
+      return { bio: '' };
+    } } } as never;
+    const fan = squiduu.ensureFan('yt1', 'Yan');
+    const r = await squiduu.siteRegister(fan, { tiktok: '@yan.tt', youtube: '@pseudotiktok' });
+    expect(r.notFound).toEqual(['youtube']);
+    expect(r.missing).toContain('youtube');
+    expect(squiduu.accountsOf(fan.id).map((a) => a.platform)).toEqual(['tiktok']);
+    expect((await squiduu.siteRegister(fan, { youtube: '@vraiechaine' })).notFound).toEqual([]);
+  });
+
+  it('rappel « connecte ton TikTok » : fans pas connectés, ceux en pause repérés', async () => {
+    const svc = new FanService(repo, new FanRepo(repo.db), agency, 'https://site.test/', async () => null, creatorConfig('squiduu'));
+    const fan = svc.ensureFan('ct1', 'Cleo');
+    await svc.siteRegister(fan, { tiktok: '@cleo.tt' });
+    const tt = svc.accountsOf(fan.id).find((a) => a.platform === 'tiktok')!;
+    const connected = new Set<number>();
+    svc.officialLogin = { platforms: ['tiktok'], connected: () => connected };
+    const mine = () => svc.fansToConnect().find((f) => f.clipperId === fan.id);
+    expect(mine()).toMatchObject({ platforms: ['tiktok'], paused: false });
+    repo.markAccountChecked(tt.id, Date.now(), { error: 'Apify: Monthly usage hard limit exceeded' });
+    expect(mine()?.paused).toBe(true);
+    connected.add(tt.id);
+    expect(mine()).toBeUndefined();
+  });
+
   it('relances perso des fans : 1 jour sans clip, seulement après un relevé, 1 par jour, 1re / 2e / 3e+, avec leurs chiffres et la citation de leur message', async () => {
     const { RELANCE_1, RELANCE_2, RELANCE_3, personalRelance } = await import('../src/domain/relance.js');
     const fan = fans.ensureFan('r1', 'Rel');
@@ -296,6 +325,24 @@ describe('programme fans (Neptune)', () => {
     expect(fans.balance(fan.id).views).toBe(903_000);
     fans.saveSettings({ clipKeywords: 'squiduu, #sqd' });
     expect(fans.clipKeywords()).toEqual(['squiduu', 'sqd']);
+  });
+
+  it('Micka : un clip publié avant l’ajout du compte (mais après le 27 août) est bien contrôlé et compte s’il cite #micka', () => {
+    const micka = new FanService(repo, new FanRepo(repo.db), agency, 'https://site.test/', async () => null, creatorConfig('micka'));
+    micka.saveSettings({ clipRule: true, accountReview: false });
+    repo.setSetting('fans', { ...repo.getSetting('fans', {}), clipRuleSince: Date.parse('2026-08-01T00:00:00Z') });
+    const fan = micka.ensureFan('oc1', 'Océania');
+    micka.addAccounts(fan, 'https://www.instagram.com/micka_quoii_micka_wuu/');
+    const account = repo.listAccountsForClipper(fan.id)[0]!;
+    const before = account.createdAt - 2 * DAY; // posté 2 jours avant de relier son Insta
+    repo.recordCollection(account.id, [
+      { platformVideoId: 'r1', views: 205, publishedAt: before, title: "Tu sais si c'est la bonne ? #micka #relationship" },
+      { platformVideoId: 'r2', views: 100, publishedAt: before, title: 'sans le tag' },
+    ], Date.now());
+    expect(micka.checkClips()).toEqual({ validés: 1, refusés: 1 });
+    const clips = micka.fans.clips(fan.id, 40, Date.parse('2026-08-01T00:00:00Z'), micka.countFrom());
+    expect(clips.find((c) => c.title?.includes('#micka'))).toMatchObject({ counted: true, why: [] });
+    expect(clips.find((c) => c.title === 'sans le tag')?.why).toEqual(['notag']);
   });
 
   it('nouveaux comptes : file « à vérifier » du staff, vues comptées dès la validation (rétroactif), refus = plus suivi', () => {

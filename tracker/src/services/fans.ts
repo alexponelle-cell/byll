@@ -4,7 +4,8 @@ import type { Account, Clipper, Repo } from '../db/repo.js';
 import type { FetcherRegistry } from '../platforms/types.js';
 import { citesCreator, clipKeywords } from './clipCheck.js';
 import { parseAccountInput, parseAccountLinks, type AccountLink, type Platform } from '../domain/links.js';
-import type { AgencyService } from './agency.js';
+import { type AgencyService, readableError } from './agency.js';
+import { trackingReport, type TrackingReport } from '../domain/tracking.js';
 import { type CoinsState, coinsDiagnosis, type FaqInfo, type FaqIntent, fanAccountError, videoKey } from '../domain/faq.js';
 import { beone } from '../creators/beone.js';
 import { parisMidnight } from '../jobs/collect.js';
@@ -317,6 +318,19 @@ export class FanService {
     const connected = this.officialLogin.connected();
     const accounts = this.repo.listAccountsForClipper(clipperId);
     return this.officialLogin.platforms.filter((p) => accounts.some((a) => a.platform === p) && !accounts.some((a) => a.platform === p && connected.has(a.id)));
+  }
+
+  /** Fans du programme qui n'ont pas encore connecté un compte (TikTok surtout) : relus par Apify (payant) ou en pause. */
+  fansToConnect(): Array<{ clipperId: number; discordId: string; platforms: Platform[]; paused: boolean }> {
+    const clientId = this.settings().clientId;
+    if (clientId === null || !this.officialLogin) return [];
+    return this.repo.listClippers({ clientId }).flatMap((c) => {
+      const platforms = this.toConnect(c.id);
+      const discordId = platforms.length ? this.fans.discordIdOf(c.id) : null;
+      if (!discordId) return [];
+      const paused = this.repo.listAccountsForClipper(c.id).some((a) => platforms.includes(a.platform) && !!a.lastError);
+      return [{ clipperId: c.id, discordId, platforms, paused }];
+    });
   }
 
   trainingUrl(clipperId: number, now = Date.now()): string {
@@ -730,7 +744,8 @@ export class FanService {
   me(clipper: Clipper, now = Date.now()) {
     const s = this.settings();
     // Coins affichés seulement sur les clips qui comptent (sinon 0 : vieux clip, compte pas vérifié, légende sans le créateur)
-    const clips = this.fans.clips(clipper.id, 40, this.clipRuleSince(), this.countFrom()).map((c) => ({ ...c, coins: c.counted ? this.points(c.gained) : 0 }));
+    // Tous les clips (gros posteurs : ~10 par jour), le site en affiche 24 puis « Voir plus »
+    const clips = this.fans.clips(clipper.id, 300, this.clipRuleSince(), this.countFrom()).map((c) => ({ ...c, coins: c.counted ? this.points(c.gained) : 0 }));
     return {
       id: clipper.id,
       avatar: this.fans.avatar(clipper.id),
@@ -951,7 +966,7 @@ export class FanService {
     if (!clientId || since === null) return done;
     const keywords = this.clipKeywords();
     const shown = this.settings().clipKeywords.trim() || keywords.join(', ');
-    for (const clip of this.fans.clipsToCheck(clientId, since)) {
+    for (const clip of this.fans.clipsToCheck(clientId, since, this.countFrom())) {
       const ok = citesCreator(clip.title, keywords);
       if ((clip.check === 'ok') === ok && clip.check !== null) continue;
       this.fans.setClipCheck(clip.id, ok, ok ? 'cite le créateur' : `la légende ne cite pas le créateur (${shown})`);
@@ -991,10 +1006,42 @@ export class FanService {
    * Inscription depuis le site : comptes tapés (@ ou lien) + compte de livraison. Un champ vide ne retire rien
    * (un compte connecté officiellement n'a pas de champ). Renvoie ce qui a été relié et ce qu'il manque encore.
    */
+  /** La chaîne YouTube existe-t-elle ? En cas de doute (quota, réseau, pas de clé), on laisse passer. */
+  async youtubeExists(value: string): Promise<boolean> {
+    const link = parseAccountInput('youtube', value);
+    const yt = this.fetchers?.youtube;
+    if (!link || !yt?.fetchProfile) return true;
+    try {
+      await yt.fetchProfile({ handle: link.handle, externalId: null });
+      return true;
+    } catch (err) {
+      return !/introuvable|not found/i.test(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /** Comptes introuvables (pseudo faux, nom de chaîne au lieu du @, compte supprimé) : à faire corriger par le fan. */
+  brokenAccounts(): Array<{ accountId: number; clipperId: number; discordId: string; platform: Platform; handle: string }> {
+    const clientId = this.settings().clientId;
+    if (clientId === null) return [];
+    return this.repo
+      .listActiveAccounts()
+      .filter((a) => a.clientId === clientId && a.lastError && /introuvable|not found|404/i.test(a.lastError))
+      .flatMap((a) => {
+        const discordId = this.fans.discordIdOf(a.clipperId);
+        return discordId ? [{ accountId: a.id, clipperId: a.clipperId, discordId, platform: a.platform, handle: a.handle }] : [];
+      });
+  }
+
   async siteRegister(clipper: Clipper, input: Partial<Record<Platform, string>> & { reward?: string }) {
     const before = this.missingPlatforms(clipper.id);
-    const typed = Object.fromEntries((['tiktok', 'youtube', 'instagram'] as const).filter((p) => input[p]?.trim()).map((p) => [p, input[p]!]));
-    const res = this.setAccounts(clipper, typed);
+    const typed: Partial<Record<Platform, string>> = Object.fromEntries((['tiktok', 'youtube', 'instagram'] as const).filter((p) => input[p]?.trim()).map((p) => [p, input[p]!]));
+    // Chaîne YouTube vérifiée tout de suite (gratuit) : un pseudo TikTok ou le nom de la chaîne à la place du @ = jamais relue
+    const notFound: Platform[] = [];
+    if (typed.youtube && !(await this.youtubeExists(typed.youtube))) {
+      delete typed.youtube;
+      notFound.push('youtube');
+    }
+    const res = { ...this.setAccounts(clipper, typed), notFound };
     let rewardError: string | undefined;
     const reward = input.reward?.trim();
     if (reward && reward.toLowerCase() !== (this.rewardAccount(clipper.id).value ?? '').toLowerCase()) {
@@ -1353,6 +1400,20 @@ export class FanService {
       roblox: this.rewardAccount(o.clipperId).value,
     }));
     return { creatorName: this.creator.creatorName, accountsToReview: this.accountsToReview(), clipRule: this.clipRuleSince() !== null, clipKeywords: this.clipKeywords(), accountLabel: this.creator.rewardAccount.kind === 'email' ? 'E-mail' : 'Roblox', creator: { id: this.creator.id, theme: this.creator.theme }, settings: s, clients: this.repo.listClients().map((c) => ({ id: c.id, name: c.name })), fans, items: this.fans.items(), orders };
+  }
+
+  /** Contrôle du relevé de la nuit (YouTube, TikTok, Instagram) : comptes relus, en erreur, en retard. */
+  trackingReport(now = Date.now()): TrackingReport | null {
+    const clientId = this.settings().clientId;
+    if (clientId === null) return null;
+    const names = new Map(this.repo.listClippers({ clientId, includeInactive: true }).map((c) => [c.id, c.username]));
+    const accounts = this.repo
+      .listActiveAccounts()
+      .filter((a) => a.clientId === clientId)
+      .map((a) => ({ ...a, username: names.get(a.clipperId) ?? '?' }));
+    const report = trackingReport(accounts, this.repo.lastPublishedByAccount(), this.officialLogin?.connected() ?? new Set(), parisMidnight(now), now);
+    for (const p of report.problems) if (p.error) p.error = readableError(p.error);
+    return report;
   }
 
   saveItem(id: number | null, input: ItemInput) {

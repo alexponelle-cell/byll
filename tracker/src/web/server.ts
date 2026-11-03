@@ -28,6 +28,7 @@ const asset = (name: string) => readFileSync(new URL(`./app/${name}`, import.met
 const ASSETS = {
   html: asset('index.html'),
   css: asset('app.css'),
+  neo: asset('neo.css'),
   js: asset('app.js'),
   fan: asset('fan.html'),
   fanSober: asset('fan-sober.html'),
@@ -546,6 +547,7 @@ export function createApp(deps: WebDeps): Hono {
 
   app.get('/', (c) => c.html(ASSETS.html));
   app.get('/app.css', (c) => c.body(ASSETS.css, 200, { 'content-type': 'text/css; charset=utf-8' }));
+  app.get('/neo.css', (c) => c.body(ASSETS.neo, 200, { 'content-type': 'text/css; charset=utf-8' }));
   app.get('/app.js', (c) => c.body(ASSETS.js, 200, { 'content-type': 'text/javascript; charset=utf-8' }));
 
   // --- Mars unique : ce Mars affiche aussi les autres créateurs --------------------------
@@ -1036,7 +1038,7 @@ export function createApp(deps: WebDeps): Hono {
 
   // --- Programme fans : boutique (staff) ----------------------------------------------
 
-  app.get('/api/fans', async (c) => c.json({ ...fans.overview(), notifications: fans.fans.notificationStats(Date.now() - 7 * 86_400_000), avatars: { urls: await fans.creatorAvatars(deps.youtubeApiKey), errors: fans.avatarErrors }, neptune: status.neptune, fansBot: !!deps.fansBotSends, neptuneKey: !!deps.neptuneApiKey, robloxKey: !!deps.robloxApiKey, gameApi: !!deps.game, emailApi: !!deps.emailApi, apify: deps.apifyUsage ? await deps.apifyUsage().catch(() => null) : null, gameCheck: deps.game ? await deps.game.rateLimit().then((r) => ({ ok: true as const, remaining: r.remaining, limit: r.limit, windowSeconds: r.windowSeconds })).catch((err: unknown) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err) })) : null }));
+  app.get('/api/fans', async (c) => c.json({ ...fans.overview(), tracking: fans.trackingReport(), notifications: fans.fans.notificationStats(Date.now() - 7 * 86_400_000), avatars: { urls: await fans.creatorAvatars(deps.youtubeApiKey), errors: fans.avatarErrors }, neptune: status.neptune, fansBot: !!deps.fansBotSends, neptuneKey: !!deps.neptuneApiKey, robloxKey: !!deps.robloxApiKey, gameApi: !!deps.game, emailApi: !!deps.emailApi, apify: deps.apifyUsage ? await deps.apifyUsage().catch(() => null) : null, gameCheck: deps.game ? await deps.game.rateLimit().then((r) => ({ ok: true as const, remaining: r.remaining, limit: r.limit, windowSeconds: r.windowSeconds })).catch((err: unknown) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err) })) : null }));
   // Funnel d'onboarding des fans (où ils s'arrêtent : serveur → règles → formation → inscription → 1er clip → coins → échange)
   app.get('/api/fans/onboarding', (c) => c.json(fans.onboardingFunnel()));
   // Recherche d'un compte (TikTok / Insta / YouTube) ou d'un pseudo, tous clippeurs confondus ; « Libérer » = le retirer de son propriétaire
