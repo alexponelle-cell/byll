@@ -25,6 +25,8 @@ export interface PlatformFetcher {
   fetchProfile?(account: { handle: string; externalId: string | null }): Promise<FetchedProfile>;
   /** Un clip précis à partir de son lien (clip jamais vu par les relevés) : son compte (pseudo ou ID) + ses compteurs. */
   fetchVideo?(url: string): Promise<{ owner: string | null; ownerId: string | null; video: VideoInput } | null>;
+  /** Plusieurs clips déjà connus, relus d'un coup (gros clips sortis des derniers lus : leurs vues continuent de monter). */
+  fetchVideos?(urls: string[]): Promise<VideoInput[]>;
 }
 
 export type FetcherRegistry = Record<Platform, PlatformFetcher>;

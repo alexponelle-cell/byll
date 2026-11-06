@@ -95,6 +95,23 @@ export class TikTokApifyFetcher implements PlatformFetcher {
     };
   }
 
+  async fetchVideos(urls: string[]) {
+    if (!urls.length) return [];
+    const items = await runActor<Record<string, any>>(this.token, this.actorId, { postURLs: urls, shouldDownloadVideos: false, shouldDownloadCovers: false });
+    return items
+      .filter((i) => i.id)
+      .map((i) => ({
+        platformVideoId: String(i.id),
+        url: i.webVideoUrl,
+        thumbnailUrl: i.videoMeta?.coverUrl ?? i.covers?.[0],
+        title: withHashtags(i.text, i.hashtags),
+        publishedAt: i.createTimeISO ? Date.parse(i.createTimeISO) : undefined,
+        views: num(i.playCount) ?? 0,
+        likes: num(i.diggCount),
+        comments: num(i.commentCount),
+      }));
+  }
+
   async fetchVideo(url: string) {
     const items = await runActor<Record<string, any>>(this.token, this.actorId, { postURLs: [url], shouldDownloadVideos: false, shouldDownloadCovers: false });
     const i = items.find((x) => x.id);
@@ -139,6 +156,10 @@ export class InstagramApifyFetcher implements PlatformFetcher {
     return fetchInstagramPost(this.token, url);
   }
 
+  async fetchVideos(urls: string[]) {
+    return urls.length ? (await instagramPosts(this.token, urls)).map((r) => r.video) : [];
+  }
+
   async fetchProfile(account: { handle: string }): Promise<FetchedProfile> {
     const items = await runActor<Record<string, any>>(this.token, this.profileActorId, { usernames: [account.handle] });
     const p = items[0];
@@ -176,25 +197,31 @@ export class InstagramApifyFetcher implements PlatformFetcher {
   }
 }
 
-/** Un reel / post Instagram précis à partir de son lien (scraper généraliste, 1 seul résultat). */
+/** Reels / posts Instagram précis à partir de leurs liens (scraper généraliste, 1 résultat par lien). */
+async function instagramPosts(token: string, urls: string[]) {
+  const items = await runActor<Record<string, any>>(token, 'apify~instagram-scraper', { directUrls: urls, resultsType: 'posts', resultsLimit: urls.length, addParentData: false });
+  return items
+    .filter((i) => (i.shortCode || i.id) && !i.error)
+    .map((i) => ({
+      owner: i.ownerUsername ? String(i.ownerUsername).toLowerCase() : null,
+      ownerId: i.ownerId ? String(i.ownerId) : null,
+      video: {
+        platformVideoId: String(i.shortCode ?? i.id),
+        url: i.url,
+        thumbnailUrl: i.displayUrl ?? i.thumbnailUrl,
+        title: withHashtags(i.caption, i.hashtags),
+        publishedAt: i.timestamp ? Date.parse(i.timestamp) : undefined,
+        views: num(i.videoPlayCount) ?? num(i.videoViewCount) ?? 0,
+        likes: num(i.likesCount),
+        comments: num(i.commentsCount),
+      },
+    }));
+}
+
+/** Un reel / post Instagram précis à partir de son lien. */
 export async function fetchInstagramPost(token: string, url: string) {
-  const items = await runActor<Record<string, any>>(token, 'apify~instagram-scraper', { directUrls: [url], resultsType: 'posts', resultsLimit: 1, addParentData: false });
-  const i = items.find((x) => x.shortCode || x.id);
-  if (!i || i.error) return null;
-  return {
-    owner: i.ownerUsername ? String(i.ownerUsername).toLowerCase() : null,
-    ownerId: i.ownerId ? String(i.ownerId) : null,
-    video: {
-      platformVideoId: String(i.shortCode ?? i.id),
-      url: i.url ?? url,
-      thumbnailUrl: i.displayUrl ?? i.thumbnailUrl,
-      title: withHashtags(i.caption, i.hashtags),
-      publishedAt: i.timestamp ? Date.parse(i.timestamp) : undefined,
-      views: num(i.videoPlayCount) ?? num(i.videoViewCount) ?? 0,
-      likes: num(i.likesCount),
-      comments: num(i.commentsCount),
-    },
-  };
+  const r = (await instagramPosts(token, [url]))[0];
+  return r ? { ...r, video: { ...r.video, url: r.video.url ?? url } } : null;
 }
 
 /** Conso Apify du mois (gratuit à lire) : dépensé, plafond et date de remise à zéro. Mise en cache 30 min. */
