@@ -444,7 +444,7 @@ export async function connectReminders(client: Client<true>, fans: FanService, n
     const priv = privateOf(guilds, f.discordId);
     if (!priv) continue;
     const what = f.platforms.map((p) => PF[p]).join(' et ton ');
-    const intro = f.paused ? `⏸️ Ton ${what} n'est **plus relu** en ce moment : tes nouvelles vues ne comptent pas.` : `📱 Ton ${what} n'est relu que toutes les 2 nuits, et seulement tes 5 derniers clips.`;
+    const intro = f.paused ? `⏸️ Ton ${what} n'est **plus relu** en ce moment : tes nouvelles vues ne comptent pas.` : `📱 Ton ${what} n'est relu que sur tes 5 derniers clips : les vues de tes clips plus anciens ne comptent plus.`;
     await priv
       .send({ content: `<@${f.discordId}> ${intro}\n**Connecte-le en 1 clic** (on ne publie rien) et il est relu **chaque nuit**, tous tes clips 👉 ${fans.connectUrl(f.clipperId, now)}`, allowedMentions: { users: [f.discordId] } })
       .then(() => {

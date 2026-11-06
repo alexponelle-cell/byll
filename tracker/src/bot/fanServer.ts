@@ -386,7 +386,7 @@ export async function scaffoldFanServer(guild: Guild, fans: FanService, siteUrl:
             .setDescription(
               c.discord
                 ? fill(c.discord.welcome)
-                : `${c.texts.heroText.replace(/\*\*/g, '')}\n\n${steps}\n\n🪙 **${rate} coins pour 1 000 vues**, tous comptes confondus. Les vues sont comptées toutes les 1 à 2 nuits.`,
+                : `${c.texts.heroText.replace(/\*\*/g, '')}\n\n${steps}\n\n🪙 **${rate} coins pour 1 000 vues**, tous comptes confondus. Les vues sont comptées chaque nuit.`,
             )
             .setThumbnail(`${siteUrl.replace(/\/fan$/, '')}/fan/assets/creator.png`),
         ],
@@ -425,7 +425,7 @@ export async function scaffoldFanServer(guild: Guild, fans: FanService, siteUrl:
               [
                 steps,
                 '',
-                `🪙 **${rate} coins pour 1 000 vues**, tous comptes confondus (YouTube + TikTok + Instagram). Les vues sont comptées toutes les 1 à 2 nuits, à partir de ton inscription.`,
+                `🪙 **${rate} coins pour 1 000 vues**, tous comptes confondus (YouTube + TikTok + Instagram). Les vues sont comptées chaque nuit, à partir de ton inscription.`,
                 c.reward ? `🎁 **${c.reward.name}** : ${c.reward.price.toLocaleString('fr-FR')} coins.` : '🎁 Les récompenses sont dans la boutique du site.',
                 '',
                 '**Ton parcours ici**',
@@ -679,9 +679,9 @@ export async function onFanRegistered(guild: Guild, member: GuildMember, account
                   'Bienvenue dans ton salon perso : seuls toi et le staff le voient.',
                   '',
                   `✅ Comptes suivis : ${accounts.join(', ')}`,
-                  '📈 Tes vues sont comptées toutes les 1 à 2 nuits, à partir de maintenant.',
+                  '📈 Tes vues sont comptées chaque nuit, à partir de maintenant.',
                   ...(extraLines.length ? ['', ...extraLines] : []),
-                  ...(already ? [] : ['', `🎬 **Dernière étape : poste ton 1er clip** sur un de ces comptes. Dès qu’il est détecté (relevé toutes les 1 à 2 nuits), tu débloques les annonces, #général et toute la communauté.`]),
+                  ...(already ? [] : ['', `🎬 **Dernière étape : poste ton 1er clip** sur un de ces comptes. Dès qu’il est détecté (relevé chaque nuit), tu débloques les annonces, #général et toute la communauté.`]),
                   siteUrl ? `🪙 Suis tes coins et échange-les sur le site : ${siteUrl}` : '🪙 Tape `/coins` pour voir tes coins.',
                   '',
                   'Une question sur tes clips ou ton montage ? Écris ici, le staff te répond.',

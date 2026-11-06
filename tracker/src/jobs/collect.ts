@@ -79,10 +79,10 @@ const DAY = 86_400_000;
 
 /**
  * Économie Apify (TikTok pas connecté et Instagram sont payants à l'usage ; YouTube et TikTok connecté sont gratuits).
- * Compte de fan payant : relu toutes les 2 nuits ; sans nouvelle vidéo depuis 14 jours, 1 fois par semaine ;
+ * Compte de fan payant : relu toutes les `activeEveryDays` nuits (variable FAN_APIFY_EVERY_DAYS, 1 = chaque nuit) ; sans nouvelle vidéo depuis 14 jours, 1 fois par semaine ;
  * sans aucune vidéo, toutes les 2 semaines. Gratuit : chaque nuit. Jamais relu : tout de suite.
  */
-export function fanAccountDue(account: { platform: string; lastCheckedAt: number | null; lastError?: string | null; createdAt?: number }, lastPublished: number | null | undefined, since: number, now: number, free = false): boolean {
+export function fanAccountDue(account: { platform: string; lastCheckedAt: number | null; lastError?: string | null; createdAt?: number }, lastPublished: number | null | undefined, since: number, now: number, free = false, activeEveryDays = 2): boolean {
   if (account.lastCheckedAt === null) return true;
   // Quota YouTube du jour épuisé : il revient à minuit heure du Pacifique (9 h à Paris), on relit dès qu'il est remis à zéro
   if (account.lastError && /quotaExceeded|exceeded your/i.test(account.lastError)) return account.lastCheckedAt < pacificMidnight(now);
@@ -94,7 +94,7 @@ export function fanAccountDue(account: { platform: string; lastCheckedAt: number
   // Compte vide : toutes les 2 semaines, sauf s'il vient d'être ajouté (le clippeur poste ses 1ers clips : toutes les 2 nuits pendant 30 jours)
   if (lastPublished == null) return age >= (account.createdAt !== undefined && now - account.createdAt < 30 * DAY ? 2 : 14) * DAY;
   if (now - lastPublished > 14 * DAY) return age >= 7 * DAY;
-  return age >= 2 * DAY;
+  return age >= activeEveryDays * DAY;
 }
 
 /** Compte relu via Apify (payant) ? YouTube et les comptes TikTok / Instagram connectés sont gratuits. */

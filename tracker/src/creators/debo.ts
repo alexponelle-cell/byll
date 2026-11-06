@@ -104,7 +104,7 @@ export const debo: CreatorConfig = {
     shopTitle: 'Récompenses',
     shopText: 'Échange tes coins contre des Robux, envoyés sur ton compte Roblox.',
     clipTitle: 'Clipper',
-    clipText: 'Poste des clips de DEBO sur TikTok, Instagram ou YouTube. Tes vues sont comptées toutes les 1 à 2 nuits.',
+    clipText: 'Poste des clips de DEBO sur TikTok, Instagram ou YouTube. Tes vues sont comptées chaque nuit.',
     rankingText: 'Les clippeurs qui ont fait le plus de vues ces 7 derniers jours.',
     footer: 'DEBO PLAYS',
     deliveredDm: '✅ Tes **{item}** ont été envoyés sur ton compte Roblox !',

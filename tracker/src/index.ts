@@ -242,7 +242,7 @@ const stopCollect = every('collecte', config.COLLECT_INTERVAL_MINUTES, async () 
   }
   const last = repo.lastPublishedByAccount();
   const free = connected;
-  const fansResult = await collectAll(repo, fanFetchers, Date.now, (account, now) => account.clientId !== fanClient || !fanAccountDue(account, last.get(account.id), parisMidnight(now), now, free.has(account.id)));
+  const fansResult = await collectAll(repo, fanFetchers, Date.now, (account, now) => account.clientId !== fanClient || !fanAccountDue(account, last.get(account.id), parisMidnight(now), now, free.has(account.id), config.FAN_APIFY_EVERY_DAYS));
   // 2e chance dans la nuit : un compte en erreur au relevé (réseau, API qui ne répond pas…) est relu une fois, 45 min plus tard
   const midnight = parisMidnight(Date.now());
   const retry = fans.botState<{ since: number; ids: number[] }>('tracking-retry', { since: 0, ids: [] });

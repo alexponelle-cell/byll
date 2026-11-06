@@ -1039,6 +1039,8 @@ describe('économie Apify : rythme de relevé des comptes de fans', () => {
     expect(fanAccountDue(tt(0.01), now - D, since, now)).toBe(false); // déjà relu cette nuit
     expect(fanAccountDue(tt(1), now - D, since, now)).toBe(false); // actif, relu hier : une nuit sur deux
     expect(fanAccountDue(tt(2), now - D, since, now)).toBe(true);
+    expect(fanAccountDue(tt(1), now - D, since, now, false, 1)).toBe(true); // FAN_APIFY_EVERY_DAYS=1 : chaque nuit
+    expect(fanAccountDue(tt(3), now - 20 * D, since, now, false, 1)).toBe(false); // inactif : toujours 1 fois / semaine
     expect(fanAccountDue(tt(7), null, since, now)).toBe(false); // vide
     expect(fanAccountDue(tt(14), null, since, now)).toBe(true);
     expect(fanAccountDue({ ...tt(5), createdAt: now - 6 * D }, null, since, now)).toBe(true); // vide mais ajouté il y a 6 j : 2 nuits

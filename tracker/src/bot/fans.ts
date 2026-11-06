@@ -335,7 +335,7 @@ export function attachAccountsChannel(discord: DiscordClient, fans: FanService):
         return;
       }
       const lines: string[] = [];
-      if (result.added.length) lines.push(`✅ C'est relié : ${result.added.map((a) => `**${PF[a.platform]}** @${a.handle}`).join(', ')}\nTes prochaines vues te rapportent des coins 🪙 (mise à jour toutes les 1 à 2 nuits)`);
+      if (result.added.length) lines.push(`✅ C'est relié : ${result.added.map((a) => `**${PF[a.platform]}** @${a.handle}`).join(', ')}\nTes prochaines vues te rapportent des coins 🪙 (mise à jour chaque nuit)`);
       if (result.conflicts.length) lines.push(`⛔ Déjà relié à quelqu'un d'autre : ${result.conflicts.map((a) => `@${a.handle}`).join(', ')}. Si c'est ton compte, préviens le staff.`);
       await message.react(result.conflicts.length && !result.added.length ? '⛔' : '✅').catch(() => {});
       // Répondre au message demande « Lire l'historique » : sinon simple message qui mentionne le fan

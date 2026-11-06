@@ -162,7 +162,7 @@ export const loann: CreatorConfig = {
     shopTitle: 'Récompenses',
     shopText: 'Échange tes coins contre des mois de Merguez Superstar, la formation YouTube de Loann.',
     clipTitle: 'Clipper',
-    clipText: 'Poste des clips de Loann sur TikTok, Instagram ou YouTube. Tes vues sont comptées toutes les 1 à 2 nuits.',
+    clipText: 'Poste des clips de Loann sur TikTok, Instagram ou YouTube. Tes vues sont comptées chaque nuit.',
     rankingText: 'Les clippeurs qui ont fait le plus de vues ces 7 derniers jours.',
     footer: 'Loann Clipping',
     deliveredDm: '✅ Ton **{item}** a été ajouté sur ton compte !',

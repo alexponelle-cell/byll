@@ -1351,7 +1351,7 @@ function pageHome() {
   </section>
 
   <section id="comment">
-    <div class="head center rv"><h2>Comment ça <span class="y">marche</span></h2><p>${fmt(PUB.pointsPer1000)} coins pour 1 000 vues, tous comptes confondus. Les vues sont comptées toutes les 1 à 2 nuits.</p></div>
+    <div class="head center rv"><h2>Comment ça <span class="y">marche</span></h2><p>${fmt(PUB.pointsPer1000)} coins pour 1 000 vues, tous comptes confondus. Les vues sont comptées chaque nuit.</p></div>
     <div class="tools">${C.texts.steps.map((s, k) => `<div class="card tool rv ${k === 0 ? 'hl' : ''}"><div class="ic">${icon(stepIcons[k] ?? 'chart')}</div><b>${esc(s.title)}</b><small>${esc(s.text)}</small></div>`).join('')}</div>
   </section>
 
@@ -1617,7 +1617,7 @@ function welcomeBack() {
 async function init() {
   [PUB] = await Promise.all([api('/api/fan/public'), loadMe()]);
   C = PUB.creator;
-  $('#footer').innerHTML = `<span class="logo">${logoHtml()}</span><span>© ${new Date().getFullYear()} ${esc(C.texts.footer)} · ${fmt(PUB.pointsPer1000)} coins pour 1 000 vues · vues mises à jour toutes les 1 à 2 nuits</span>`;
+  $('#footer').innerHTML = `<span class="logo">${logoHtml()}</span><span>© ${new Date().getFullYear()} ${esc(C.texts.footer)} · ${fmt(PUB.pointsPer1000)} coins pour 1 000 vues · vues mises à jour chaque nuit</span>`;
   if (!window.__hc) { window.__hc = true; addEventListener('hashchange', () => { if (location.hash === '#comment') return; route(); scrollTo({ top: 0 }); }); }
   route();
   const error = new URLSearchParams(location.search).get('error');

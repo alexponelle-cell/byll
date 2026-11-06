@@ -99,6 +99,8 @@ const schema = z.object({
   YOUTUBE_REDIRECT_URI: optionalString,
 
   COLLECT_INTERVAL_MINUTES: z.coerce.number().positive().default(60),
+  /** Comptes de fans lus par Apify (payant) et actifs : relus toutes les N nuits (1 = chaque nuit, 2 = une sur deux, moitié prix). */
+  FAN_APIFY_EVERY_DAYS: z.coerce.number().int().min(1).max(7).default(1),
   RELANCE_CHECK_INTERVAL_MINUTES: z.coerce.number().positive().default(180),
 
   INACTIVITY_DAYS: z.coerce.number().positive().default(3),
