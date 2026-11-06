@@ -71,6 +71,5 @@ export function weekendWindow(mondayMidnight: number): { from: number; to: numbe
   return { from: mondayMidnight - 54 * 3_600_000, to: mondayMidnight };
 }
 
-export const WEEKEND_GOAL = 3;
 
 export { dayKey };

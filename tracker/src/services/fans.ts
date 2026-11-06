@@ -13,7 +13,8 @@ import type { CreatorConfig } from '../creators/types.js';
 import type { RelanceContext } from '../domain/relance.js';
 import { buildQuests, currentStreak, QUEST_COINS, type Quest } from '../domain/quests.js';
 import { dayKey } from '../domain/time.js';
-import { bestSlot, clipVerdict, verdictMessage, WEEKEND_GOAL } from '../domain/engagement.js';
+import { bestSlot, clipVerdict, verdictMessage } from '../domain/engagement.js';
+import type { WeekendStat } from '../domain/challenges.js';
 
 /** Programme fans (bot Neptune) : les fans clippent, gagnent des points avec leurs vues et les échangent en boutique. */
 export interface FanSettings {
@@ -478,16 +479,22 @@ export class FanService {
     return out;
   }
 
-  /** Défi du week-end : fans qui ont publié au moins WEEKEND_GOAL clips (qui comptent) dans la fenêtre. */
-  weekendWinners(from: number, to: number): Array<{ clipperId: number; discordId: string; clips: number }> {
-    const counts = new Map<number, { discordId: string; clips: number }>();
+  /** Défi du week-end : ce que chaque fan a fait (clips qui comptent publiés dans la fenêtre vendredi 18 h → lundi 0 h). */
+  weekendStats(from: number, to: number): WeekendStat[] {
+    const by = new Map<number, WeekendStat>();
     for (const c of this.clipGains(0)) {
       if (!c.discordId || c.publishedAt < from || c.publishedAt >= to) continue;
-      const cur = counts.get(c.clipperId) ?? { discordId: c.discordId, clips: 0 };
+      const cur = by.get(c.clipperId) ?? { clipperId: c.clipperId, discordId: c.discordId, clips: 0, views: 0, best: 0, perPlatform: { tiktok: 0, instagram: 0, youtube: 0 }, perDay: [0, 0, 0] as [number, number, number] };
       cur.clips++;
-      counts.set(c.clipperId, cur);
+      cur.views += c.views;
+      cur.best = Math.max(cur.best, c.views);
+      if (c.platform in cur.perPlatform) cur.perPlatform[c.platform as keyof WeekendStat['perPlatform']]++;
+      // Vendredi 18 h → samedi 0 h, samedi, dimanche
+      const h = (c.publishedAt - from) / 3_600_000;
+      cur.perDay[h < 6 ? 0 : h < 30 ? 1 : 2]++;
+      by.set(c.clipperId, cur);
     }
-    return [...counts].filter(([, v]) => v.clips >= WEEKEND_GOAL).map(([clipperId, v]) => ({ clipperId, ...v }));
+    return [...by.values()];
   }
 
   /** Quêtes arrêtées : coins donnés retirés (une seule fois au démarrage). */

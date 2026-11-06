@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ChannelType, type Client, EmbedBuilder, type Guild, type Role, type TextChannel } from 'discord.js';
-import { weekendWindow, WEEKEND_GOAL } from '../domain/engagement.js';
+import { weekendWindow } from '../domain/engagement.js';
+import { challengeAnnounce, challengeTarget, challengeWinners, CHALLENGES, type ChallengeId, pickChallenge } from '../domain/challenges.js';
 import { complainsAboutBot, personalRelance } from '../domain/relance.js';
 import { dayKey as dayKeyOf } from '../domain/time.js';
-import { startOfDay } from '../domain/time.js';
+import { startOfDay, startOfWeek } from '../domain/time.js';
 import { drawMotivation, type MotivationState, motivationMessage } from '../domain/motivation.js';
 import { log } from '../log.js';
 import { trackingMessage } from '../domain/tracking.js';
@@ -625,22 +626,43 @@ export async function dailyBestClips(client: Client<true>, fans: FanService, now
 export async function weekendChallenge(client: Client<true>, fans: FanService, now = Date.now()): Promise<number> {
   const { weekday, hour, day } = parisClock(now);
   const guilds = setupGuilds(client, fans);
+  const WEEK = 7 * 86_400_000;
+  /** Défi du week-end qui finit au lundi `monday` : tiré à tour de rôle, objectif calé sur les 4 week-ends d'avant. */
+  const challengeFor = (monday: number) => {
+    const saved = fans.botState<{ monday: number; id: ChallengeId; target: number } | null>('weekend-challenge', null);
+    if (saved && saved.monday === monday) return saved;
+    const id = pickChallenge(Math.round(monday / WEEK));
+    const history = [1, 2, 3, 4].flatMap((k) => { const w = weekendWindow(monday - k * WEEK); return fans.weekendStats(w.from, w.to); });
+    const c = { monday, id, target: challengeTarget(id, history) };
+    fans.setBotState('weekend-challenge', c);
+    return c;
+  };
   if (weekday === 5 && hour >= 18 && fans.botState<string>('weekend-announce', '') !== day) {
     fans.setBotState('weekend-announce', day);
+    const c = challengeFor(startOfWeek(now) + WEEK);
     for (const guild of guilds) {
-      await channel(guild, ANNOUNCE_CHANNEL)?.send({ content: `🔥 **Défi du week-end** : poste **${WEEKEND_GOAL} clips** d’ici dimanche minuit et gagne le rôle **${ROLE_WEEKEND}** toute la semaine prochaine. Let’s go ! 💪`, allowedMentions: { parse: [] } }).catch(() => {});
+      await channel(guild, ANNOUNCE_CHANNEL)?.send({ content: challengeAnnounce(c.id, c.target, ROLE_WEEKEND), allowedMentions: { parse: [] } }).catch(() => {});
     }
     return 0;
   }
   if (weekday !== 1 || hour < 10 || fans.botState<string>('weekend-award', '') === day) return 0;
   fans.setBotState('weekend-award', day);
-  const { from, to } = weekendWindow(startOfDay(now));
-  const winners = fans.weekendWinners(from, to);
+  const monday = startOfDay(now);
+  const c = challengeFor(monday);
+  const { from, to } = weekendWindow(monday);
+  const winners = challengeWinners(c.id, c.target, fans.weekendStats(from, to));
   for (const guild of guilds) {
     const role = await ensureRole(guild, ROLE_WEEKEND, 0xff4d2e);
     if (!role) continue;
     await rotateRole(guild, fans, role, winners.map((w) => w.discordId), 'weekend-role');
-    if (winners.length) await channel(guild, ANNOUNCE_CHANNEL)?.send({ content: `🔥 **Défi du week-end réussi** par ${winners.map((w) => `<@${w.discordId}>`).join(', ')} : rôle **${ROLE_WEEKEND}** pour la semaine. Bien joué ! Prochain défi vendredi 18 h.`, allowedMentions: { users: winners.map((w) => w.discordId) } }).catch(() => {});
+    await channel(guild, ANNOUNCE_CHANNEL)
+      ?.send({
+        content: winners.length
+          ? `🔥 **Défi « ${CHALLENGES[c.id].name} » réussi** par ${winners.map((w) => `<@${w.discordId}>`).join(', ')} : rôle **${ROLE_WEEKEND}** pour la semaine. Bien joué ! Prochain défi vendredi 18 h.`
+          : `🔥 Personne n’a réussi le défi **« ${CHALLENGES[c.id].name} »** ce week-end 😮 Il était costaud ! Prochain défi vendredi 18 h.`,
+        allowedMentions: { users: winners.map((w) => w.discordId) },
+      })
+      .catch(() => {});
   }
   return winners.length;
 }

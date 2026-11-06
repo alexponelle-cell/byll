@@ -51,8 +51,35 @@ describe('motivation des clippeurs : service', () => {
     expect(fb).toHaveLength(2);
     expect(fb.some((f) => f.text.includes('5 000'))).toBe(true);
     expect(fans.clipFeedback(now)).toHaveLength(0);
-    expect(fans.weekendWinners(now - 4 * DAY, now)).toHaveLength(0);
-    expect(fans.weekendWinners(now - 20 * DAY, now).map((w) => w.discordId)).toEqual(['m1']);
+    expect(fans.weekendStats(now - 1 * DAY, now)).toHaveLength(0);
+    const st = fans.weekendStats(now - 20 * DAY, now).find((w) => w.discordId === 'm1')!;
+    expect(st).toMatchObject({ clips: 8, best: 5000, views: 11_010, perPlatform: { tiktok: 8, instagram: 0, youtube: 0 } });
   });
 });
 const HOUR = 3_600_000;
+
+import { challengeAnnounce, challengeTarget, challengeWinners, pickChallenge, roundNice, type WeekendStat } from '../src/domain/challenges.js';
+
+describe('défis du week-end tournants', () => {
+  const st = (id: number, o: Partial<WeekendStat>): WeekendStat => ({ clipperId: id, discordId: `d${id}`, clips: 3, views: 1000, best: 500, perPlatform: { tiktok: 1, instagram: 1, youtube: 1 }, perDay: [1, 1, 1], ...o });
+  it('un défi différent chaque semaine, jamais deux fois de suite', () => {
+    const ids = Array.from({ length: 12 }, (_, w) => pickChallenge(w));
+    expect(new Set(ids.slice(0, 6)).size).toBe(6);
+    ids.slice(1).forEach((id, i) => expect(id).not.toBe(ids[i]));
+  });
+  it('objectif calé sur les meilleurs du serveur (Loann : bien plus haut), jamais sous le minimum', () => {
+    const petit = Array.from({ length: 20 }, (_, i) => st(i, { views: 1000 * i }));
+    expect(challengeTarget('cagnotte', petit)).toBe(30_000); // serveur calme : minimum
+    const loann = Array.from({ length: 20 }, (_, i) => st(i, { views: 50_000 * i, clips: 4 + i }));
+    expect(challengeTarget('cagnotte', loann)).toBe(850_000);
+    expect(challengeTarget('marathon', loann)).toBe(21);
+    expect(challengeTarget('marathon', [])).toBe(6);
+    expect(roundNice(37_412)).toBe(40_000);
+  });
+  it('gagnants : objectif atteint, ou top 5 pour le podium ; annonce claire', () => {
+    const stats = [st(1, { perDay: [2, 2, 2] }), st(2, { perDay: [3, 0, 4] }), ...Array.from({ length: 6 }, (_, i) => st(10 + i, { views: 100 * i }))];
+    expect(challengeWinners('regulier', 2, stats).map((s) => s.clipperId)).toEqual([1]);
+    expect(challengeWinners('podium', 5, stats)).toHaveLength(5);
+    expect(challengeAnnounce('perce', 40_000, '🔥 Défi du week-end')).toContain('un clip à 40');
+  });
+});
