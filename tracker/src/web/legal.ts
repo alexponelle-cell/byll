@@ -31,9 +31,26 @@ relatives aux données utilisateur des services d'API Google</a>, y compris les 
 <h2>Utilisation</h2>
 <p>Ces données servent uniquement à compter les vues de tes clips, calculer tes coins, afficher le classement et livrer tes récompenses.
 Elles ne sont ni vendues ni partagées, sauf l'e-mail ou le pseudo de jeu transmis au créateur pour livrer ta récompense.</p>
+<h2>Partage avec des tiers</h2>
+<p>Nous ne vendons, ne louons et ne partageons aucune donnée. Les données utilisateur Google (identifiant et pseudo @ de ta chaîne YouTube)
+ne sont jamais partagées, transférées ni divulguées à un tiers. Seul notre hébergeur technique (Railway, qui fait tourner nos serveurs) les stocke
+pour notre compte, sans y avoir d'usage propre. La seule exception concerne l'e-mail ou le pseudo de jeu que tu donnes pour ta récompense,
+transmis au créateur pour te la livrer.</p>
+<h2>Protection des données</h2>
+<p>Toutes les connexions au site sont chiffrées (HTTPS). Les jetons d'accès Google sont révoqués aussitôt après la lecture de ta chaîne et ne
+sont jamais enregistrés. Les données sont stockées sur des serveurs privés, accessibles seulement à l'équipe du programme via un accès protégé
+par mot de passe. Nous ne gardons que le strict nécessaire (identifiant et pseudo de la chaîne).</p>
 <h2>Durée et suppression</h2>
 <p>Les données sont gardées tant que tu participes au programme. Tu peux déconnecter ton TikTok ou ton Instagram à tout moment dans leurs réglages
-(applications connectées), et demander la suppression de toutes tes données au staff sur le serveur Discord.</p>`;
+(applications connectées), et demander la suppression de toutes tes données au staff sur le serveur Discord.</p>
+<h2>Google user data (summary in English)</h2>
+<p><b>Access:</b> when you click "Connect my YouTube", we request read-only access (youtube.readonly) and read your channel ID and @handle once,
+to prove the channel is yours. <b>Use:</b> only to link that channel to your clipper account so its public Shorts are counted. <b>Storage:</b> we store
+only the channel ID and handle; the access token is revoked immediately and never stored. <b>Sharing:</b> Google user data is never sold, shared,
+transferred or disclosed to any third party (our hosting provider, Railway, only stores it on our behalf). <b>Protection:</b> HTTPS for all traffic,
+private servers, staff access protected by password, minimal data kept. <b>Deletion:</b> ask the staff on Discord, or revoke access at
+<a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. Our use of information received from Google APIs adheres to the
+<a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>`;
 
 export const TERMS_HTML = `
 <p>En participant au programme de clipping, tu acceptes ces conditions.</p>
