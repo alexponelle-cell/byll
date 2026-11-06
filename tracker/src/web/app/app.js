@@ -1773,6 +1773,9 @@ async function pageBoutique() {
       <div class="card"><div class="card-head"><div><h2>🔎 Chercher un compte</h2><p>Un fan dit « déjà relié à quelqu'un d'autre » ? Tape le @ de son compte (ou un pseudo Discord) : tu vois à qui il est relié. <b>Libérer</b> le retire de ce fan, il pourra le relier au bon compte en refaisant S'inscrire.</p></div></div>
         <div class="card-pad" style="padding-top:0"><input class="input" id="acc-search" placeholder="@pseudo TikTok / Insta / YouTube, ou pseudo Discord" autocomplete="off"></div><div id="acc-results"></div></div>
 
+      <div class="card"><div class="card-head"><div><h2>➕ Ajouter un clip manquant</h2><p>Un fan dit qu'un clip n'apparaît pas ? Colle son lien : il est lu tout de suite et ajouté au compte qui l'a posté (s'il est relié). Insta / TikTok : ~0,3 centime d'Apify.</p></div></div>
+        <form class="card-pad" id="clip-recover" style="padding-top:0;display:flex;gap:8px;flex-wrap:wrap"><input class="input" name="url" placeholder="https://www.instagram.com/reel/…" style="flex:1;min-width:240px" required><button class="btn dark">Ajouter</button></form></div>
+
       <div class="card" id="faq-misses"><div class="card-head"><div><h2>Questions sans réponse</h2><p>Ce que les clippeurs demandent dans ❓│aide et que le bot ne sait pas encore répondre. Envoie-les à Claude pour qu'il ajoute les réponses.</p></div></div><div class="empty">Chargement…</div></div>
 
       <div class="card"><div class="card-head"><div><h2>Objets en boutique</h2><p>Référence jeu = l'ID du produit côté jeu (rempli automatiquement à l'import)</p></div><div class="actions">${d.gameApi ? `<button class="btn" data-import-game>${icon('download')} Importer depuis le jeu</button>` : ''}<button class="btn dark" data-add-item>${icon('plus')} Nouvel objet</button></div></div>
@@ -1802,6 +1805,21 @@ async function pageBoutique() {
     </div>`;
   const root = main();
   onSeg(root, 'trplat', (v) => ($('#tr-rows', root).innerHTML = trackingRows(d.tracking, v)));
+  $('#clip-recover', root)?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.currentTarget;
+    const btn = $('button', f);
+    btn.disabled = true;
+    try {
+      const r = await api('/api/fans/clips/recover', { method: 'POST', body: { url: f.url.value.trim() } });
+      toast(r.message);
+      f.reset();
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
   bindRows(root);
   $('[data-fan-refresh]', root).addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;

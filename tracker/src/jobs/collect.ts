@@ -2,6 +2,10 @@ import type { Account, Repo } from '../db/repo.js';
 import type { FetcherRegistry } from '../platforms/types.js';
 import { log } from '../log.js';
 
+/** Gros clips relus à part à chaque lecture Apify : au moins 5 000 vues, les 3 plus vus des 30 derniers jours. */
+export const BIG_CLIP_VIEWS = 5000;
+export const BIG_CLIPS_PER_READ = 3;
+
 export interface CollectResult {
   ok: number;
   failed: number;
@@ -32,6 +36,13 @@ export async function collectAll(
         log.warn(`collect ${account.platform}/${account.handle} : doublon de @${dup.handle} (${owner}), désactivé`);
         result.failed++;
         continue;
+      }
+      // Gros clips récents sortis des derniers lus (Apify) : relus à part, sinon leurs vues restent figées
+      const fetcher = fetchers[account.platform];
+      if (fetcher.fetchVideos) {
+        const seen = new Set(fetched.videos.map((v) => v.platformVideoId));
+        const urls = repo.bigClipsToRefresh(account.id, seen, now() - 30 * 86_400_000, BIG_CLIP_VIEWS, BIG_CLIPS_PER_READ);
+        if (urls.length) fetched.videos.push(...(await fetcher.fetchVideos(urls).catch(() => [])).filter((v) => !seen.has(v.platformVideoId)));
       }
       const at = now();
       const snap = repo.recordCollection(account.id, fetched.videos, at);

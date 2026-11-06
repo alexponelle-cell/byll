@@ -1108,6 +1108,20 @@ export function createApp(deps: WebDeps): Hono {
     fans.fans.addBonus(Number(c.req.param('id')), amount);
     return c.json({ ok: true });
   });
+  // Clip jamais vu par les relevés (posté entre deux lectures) : le staff colle son lien, on le lit et on l'ajoute
+  app.post('/api/fans/clips/recover', async (c) => {
+    const { url } = z.object({ url: z.string().url() }).parse(await c.req.json());
+    const r = await fans.recoverClip(url);
+    const msg = {
+      added: r.status === 'added' ? `Clip ajouté à @${r.handle} : ${r.views.toLocaleString('fr-FR')} vues ✅` : '',
+      exists: 'Ce clip est déjà suivi (regarde ses clips refusés si il ne compte pas).',
+      'not-linked': r.status === 'not-linked' ? `Ce clip est sur @${r.owner ?? '?'}, qui n'est relié à aucun fan du programme.` : '',
+      unknown: 'Clip introuvable (lien faux, privé ou supprimé).',
+      unavailable: 'Lecture impossible ici (pas de clé Apify / YouTube sur ce site).',
+      quota: '',
+    }[r.status];
+    return r.status === 'added' ? c.json({ ok: true, message: msg }) : c.json({ error: msg || 'Impossible' }, 400);
+  });
   // Clip refusé (pas de #tag lu) vérifié à la main par le staff : il compte
   app.post('/api/fans/clips/:id/approve', (c) => {
     const clientId = fans.settings().clientId;

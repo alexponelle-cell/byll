@@ -91,3 +91,33 @@ describe('légendes Apify', () => {
     expect(withHashtags(undefined, [])).toBeUndefined();
   });
 });
+
+import { openDatabase } from '../src/db/index.js';
+import { Repo } from '../src/db/repo.js';
+import { collectAll } from '../src/jobs/collect.js';
+
+describe('gros clips sortis des 5 derniers (Apify)', () => {
+  it('sont relus à part et leurs vues continuent de monter', async () => {
+    const repo = new Repo(openDatabase(':memory:'));
+    const client = repo.upsertClient({ name: 'Micka', rule: { ratePer1kCents: 0, minViews: 0, capCents: null } });
+    const clipper = repo.upsertClipper('a1', 'Arthur', Date.now(), client.id);
+    repo.registerAccount({ clipperId: clipper.id, clientId: client.id, platform: 'instagram', handle: 'micka.elwu', url: 'https://www.instagram.com/micka.elwu/' });
+    const now = Date.now();
+    const vid = (id: string, views: number, ageDays: number) => ({ platformVideoId: id, url: `https://www.instagram.com/reel/${id}/`, views, publishedAt: now - ageDays * 86_400_000, title: '#micka' });
+    let batch = [vid('big', 563_000, 6), vid('n1', 100, 1)];
+    const asked: string[][] = [];
+    const ig = {
+      platform: 'instagram' as const,
+      fetchAccount: async () => ({ videos: batch }),
+      fetchVideos: async (urls: string[]) => { asked.push(urls); return urls.map((u) => vid(u.match(/reel\/(\w+)/)![1]!, 657_000, 6)); },
+    };
+    const fetchers = { instagram: ig, tiktok: ig, youtube: ig } as never;
+    await collectAll(repo, fetchers);
+    expect(asked).toEqual([]); // le gros clip est dans le lot lu : pas de 2e lecture
+    batch = [vid('n2', 50, 0), vid('n1', 300, 1)]; // il est sorti des derniers lus
+    await collectAll(repo, fetchers);
+    expect(asked).toEqual([['https://www.instagram.com/reel/big/']]);
+    const views = repo.db.prepare("SELECT views FROM videos WHERE platform_video_id = 'big'").get() as { views: number };
+    expect(views.views).toBe(657_000);
+  });
+});

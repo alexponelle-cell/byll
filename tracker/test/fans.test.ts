@@ -345,6 +345,35 @@ describe('programme fans (Neptune)', () => {
     expect(clips.find((c) => c.title === 'sans le tag')?.why).toEqual(['notag']);
   });
 
+  it('clip jamais vu par les relevés : retrouvé à partir de son lien et ajouté au bon compte (staff et FAQ du fan)', async () => {
+    const micka = new FanService(repo, new FanRepo(repo.db), agency, 'https://site.test/', async () => null, creatorConfig('micka'));
+    micka.saveSettings({ clipRule: true, accountReview: false });
+    const fan = micka.ensureFan('mi1', 'Miattack');
+    micka.addAccounts(fan, 'https://www.instagram.com/mickaelwuclip6/');
+    const account = repo.listAccountsForClipper(fan.id)[0]!;
+    repo.recordCollection(account.id, [{ platformVideoId: 'old1', views: 900, publishedAt: Date.now() - DAY, title: 'vieux #micka' }], Date.now() - HOUR);
+    let calls = 0;
+    micka.clipFetchers = { instagram: { fetchVideo: async (url: string) => {
+      calls++;
+      const code = url.match(/reel\/([\w-]+)/)![1]!;
+      return { owner: code === 'Autre1x' ? 'quelquun' : 'mickaelwuclip6', ownerId: null, video: { platformVideoId: code, url, views: 40_000, publishedAt: Date.now(), title: 'Et vous combien vous dépensez #mickaelwu #business #micka' } };
+    } } };
+    // Le fan colle le lien dans son salon : retrouvé, ajouté, il compte
+    const lines = await micka.faqClip(fan, 'ce clip est pas compté ? https://www.instagram.com/reel/De9TBcEMFpj/?hl=fr');
+    expect(lines[0]).toContain('clip ajouté');
+    expect(lines.join(' ')).toContain('Ce clip compte');
+    expect(micka.balance(fan.id).views).toBeGreaterThanOrEqual(40_000);
+    // Déjà suivi : pas de nouvelle lecture payante
+    expect(await micka.recoverClip('https://www.instagram.com/reel/De9TBcEMFpj/')).toEqual({ status: 'exists' });
+    // Posté sur un compte que personne n'a relié
+    expect(await micka.recoverClip('https://www.instagram.com/reel/Autre1x/')).toEqual({ status: 'not-linked', owner: 'quelquun' });
+    // 3 recherches par jour pour un fan
+    await micka.recoverClip('https://www.instagram.com/reel/Xabc2/', fan.id);
+    await micka.recoverClip('https://www.instagram.com/reel/Xabc3/', fan.id);
+    expect(await micka.recoverClip('https://www.instagram.com/reel/Xabc4/', fan.id)).toEqual({ status: 'quota' });
+    expect(calls).toBe(4);
+  });
+
   it('nouveaux comptes : file « à vérifier » du staff, vues comptées dès la validation (rétroactif), refus = plus suivi', () => {
     fans.saveSettings({ accountReview: true });
     const fan = fans.ensureFan('d8', 'Nouveau', now - 3 * HOUR);

@@ -80,6 +80,8 @@ const creator = creatorConfig(config.CREATOR);
 const fans = new FanService(repo, new FanRepo(db), agency, dashboardUrl, undefined, creator);
 // Lecture des bios à la demande (vérification des comptes par code)
 fans.fetchers = fetchers;
+// Un clip précis à partir de son lien (clip jamais vu, posté entre deux relevés) : Apify pour TikTok / Insta, API pour YouTube
+fans.clipFetchers = createFetchers({ ...config, VIDEOS_PER_ACCOUNT: 5 });
 const officialPlatforms = [
   ...(tiktokCreds ? (['tiktok'] as const) : []),
   ...(googleCreds ? (['youtube'] as const) : []),

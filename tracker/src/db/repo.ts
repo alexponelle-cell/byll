@@ -298,6 +298,17 @@ export class Repo {
     return new Map(rows.map((r) => [r.id, r.last]));
   }
 
+  /**
+   * Gros clips récents d'un compte qui ne sont plus dans les derniers lus (Apify ne lit que les 5 derniers) :
+   * relus à part pour que leurs vues continuent de monter. Les plus vus d'abord.
+   */
+  bigClipsToRefresh(accountId: number, exclude: ReadonlySet<string>, since: number, minViews: number, limit: number): string[] {
+    const rows = this.db
+      .prepare('SELECT platform_video_id AS id, url FROM videos WHERE account_id = ? AND url IS NOT NULL AND COALESCE(published_at, first_seen_at) >= ? AND views >= ? ORDER BY views DESC LIMIT ?')
+      .all(accountId, since, minViews, limit + exclude.size) as Array<{ id: string; url: string }>;
+    return rows.filter((r) => !exclude.has(r.id)).slice(0, limit).map((r) => r.url);
+  }
+
   listActiveAccounts(): Account[] {
     return this.db
       .prepare('SELECT * FROM accounts WHERE active = 1 ORDER BY last_checked_at IS NOT NULL, last_checked_at')
