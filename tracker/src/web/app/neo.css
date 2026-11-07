@@ -336,3 +336,10 @@ html.theming, html.theming * { transition: background-color 0.5s, color 0.4s, bo
 html:not(.neo) .search kbd, html:not(.neo) .search .ask-go { display: none; }
 html:not(.neo) .today .hi { margin-right: 4px; }
 html:not(.neo) .card.inkcard { background: var(--panel-2); }
+
+/* Menus qui s'ouvrent depuis le haut de page (calendrier de période, choix d'agence) : toujours au-dessus des cartes */
+html.neo main .page-head { position: relative; z-index: 20; }
+html.neo .picker-pop { z-index: 40; }
+html.neo .picker-pop { width: 490px; max-width: calc(100vw - 32px); }
+html.neo .picker-body { grid-template-columns: 160px 1fr; }
+@media (max-width: 960px) { html.neo .picker-body { grid-template-columns: 1fr; } }

@@ -2128,6 +2128,13 @@ function animatePage(root = main()) {
     if (el.matches('.kpis, .cards, .bento, .client-pick') || el.closest('.rise')) continue;
     el.classList.add('rise');
     el.style.setProperty('--i', Math.min(i++, 14));
+    // Animation finie : on retire la classe, sinon la carte reste « au-dessus » et cache les menus (calendrier…)
+    const done = (e) => {
+      if (e.target !== el) return; // animations des enfants (barres, courbes) : on attend celle de la carte
+      el.classList.remove('rise');
+      el.removeEventListener('animationend', done);
+    };
+    el.addEventListener('animationend', done);
   }
   $$('.k-value, .hero-num, .kp .v, .mini-stats b, .trio b, .gauge .gc b', root).forEach(countUp);
 }
